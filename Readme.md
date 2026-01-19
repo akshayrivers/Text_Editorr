@@ -6,4 +6,8 @@
 
 ### chapter 2
 
--
+- Entering Raw mode
+
+### chapter 3
+
+- Raw Input and Output
