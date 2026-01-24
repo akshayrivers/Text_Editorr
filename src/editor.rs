@@ -3,10 +3,10 @@ use crossterm::event::{read, Event::Key, KeyCode::Char, KeyEvent, KeyEventKind, 
 use crossterm::event::{Event, KeyCode};
 use std::io::Error;
 mod terminal;
+mod view;
 use terminal::{Position, Size, Terminal};
 
-const NAME: &str = env!("CARGO_PKG_NAME");
-const VERSION: &str = env!("CARGO_PKG_VERSION");
+use view::View;
 #[derive(Clone, Copy, Default)]
 struct Location {
     x: usize,
@@ -16,6 +16,7 @@ struct Location {
 pub struct Editor {
     should_quit: bool,
     location: Location,
+    view: View,
 }
 
 impl Editor {
@@ -105,7 +106,7 @@ impl Editor {
             Terminal::clear_screen()?;
             Terminal::print("Goodbye. \r\n")?;
         } else {
-            Self::draw_rows()?;
+            self.view.render()?;
             Terminal::move_caret_to(Position {
                 col: self.location.x,
                 row: self.location.y,
@@ -113,40 +114,6 @@ impl Editor {
         }
         Terminal::show_caret()?;
         Terminal::execute()?;
-        Ok(())
-    }
-
-    fn draw_welcome_message() -> Result<(), Error> {
-        let mut welcome_message = format!("{NAME} editor -- version {VERSION}");
-        let width = Terminal::size()?.width;
-        let len = welcome_message.len();
-        #[allow(clippy::integer_division)]
-        let padding = (width.saturating_sub(len)) / 1;
-        let spaces = " ".repeat(padding.saturating_sub(1));
-        welcome_message = format!("~{spaces}{welcome_message}");
-        welcome_message.truncate(width);
-        Terminal::print(welcome_message)?;
-        Ok(())
-    }
-    fn draw_empty_row() -> Result<(), Error> {
-        Terminal::print("~")?;
-        Ok(())
-    }
-
-    fn draw_rows() -> Result<(), Error> {
-        let Size { height, .. } = Terminal::size()?;
-        for current_row in 0..height {
-            Terminal::clear_line()?;
-            #[allow(clippy::integer_division)]
-            if current_row == height / 3 {
-                Self::draw_welcome_message()?;
-            } else {
-                Self::draw_empty_row()?;
-            }
-            if current_row.saturating_add(1) < height {
-                Terminal::print("\r\n")?;
-            }
-        }
         Ok(())
     }
 }

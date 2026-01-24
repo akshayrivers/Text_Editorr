@@ -47,7 +47,7 @@ impl Terminal {
         Self::queue_command(Show)?;
         Ok(())
     }
-    pub fn print<T: Display>(string: T) -> Result<(), Error> {
+    pub fn print(string: &str) -> Result<(), Error> {
         Self::queue_command(Print(string))?;
         Ok(())
     }
