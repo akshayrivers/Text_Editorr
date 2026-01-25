@@ -61,7 +61,7 @@ impl Terminal {
         Ok(Size { height, width })
     }
 }
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Default)]
 pub struct Size {
     pub height: usize,
     pub width: usize,
