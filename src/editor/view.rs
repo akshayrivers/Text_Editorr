@@ -55,6 +55,8 @@ impl View {
             EditorCommand::Move(direction) => self.move_text_location(&direction),
             EditorCommand::Quit => {}
             EditorCommand::Insert(character) => self.insert_char(character),
+            EditorCommand::Backspace => self.backspace(),
+            EditorCommand::Delete => self.delete(),
         }
     }
     pub fn load(&mut self, file_name: &str) {
@@ -83,9 +85,19 @@ impl View {
             .map_or(0, Line::grapheme_count);
         let grapheme_delta = new_len.saturating_sub(old_len);
         if grapheme_delta > 0 {
-            // we move right
-            self.move_right();
+            // we move right with scroll handling
+            self.move_text_location(&Direction::Right);
         }
+        self.needs_redraw = true;
+    }
+    fn backspace(&mut self) {
+        if self.text_location.line_index != 0 || self.text_location.grapheme_index != 0 {
+            self.move_text_location(&Direction::Left);
+            self.delete();
+        }
+    }
+    fn delete(&mut self) {
+        self.buffer.delete(self.text_location);
         self.needs_redraw = true;
     }
 
@@ -207,7 +219,7 @@ impl View {
     fn move_left(&mut self) {
         if self.text_location.grapheme_index > 0 {
             self.text_location.grapheme_index -= 1;
-        } else {
+        } else if self.text_location.line_index > 0 {
             self.move_up(1);
             self.move_to_end_of_line();
         }
