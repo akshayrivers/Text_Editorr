@@ -20,6 +20,7 @@ pub enum EditorCommand {
     Insert(char),
     Backspace,
     Delete,
+    Enter,
 }
 
 impl TryFrom<Event> for EditorCommand {
@@ -33,6 +34,8 @@ impl TryFrom<Event> for EditorCommand {
                 (KeyCode::Char(character), KeyModifiers::NONE | KeyModifiers::SHIFT) => {
                     Ok(Self::Insert(character))
                 }
+                (KeyCode::Tab, _) => Ok(Self::Insert('\t')),
+                (KeyCode::Enter, _) => Ok(Self::Enter),
                 (KeyCode::Up, _) => Ok(Self::Move(Direction::Up)),
                 (KeyCode::Down, _) => Ok(Self::Move(Direction::Down)),
                 (KeyCode::Left, _) => Ok(Self::Move(Direction::Left)),
