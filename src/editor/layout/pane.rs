@@ -13,6 +13,7 @@ Pane should know:
     - whether it is focused
 */
 use crate::{
+    editor::buffers::BufferManager,
     editor::uicomponents::{UIComponent, View},
     prelude::*,
 };
@@ -56,7 +57,7 @@ impl Pane {
             PaneContent::Popup(view) => view.resize(rect),
         }
     }
-    pub fn render(&mut self) {
+    pub fn render(&mut self, buffer_manager: &BufferManager) {
         let active = self.active;
         match &mut self.content {
             PaneContent::TextView(view)
@@ -64,7 +65,12 @@ impl Pane {
             | PaneContent::FileExplorer(view)
             | PaneContent::Popup(view) => {
                 view.set_active(active);
-                view.render();
+                if view.needs_redraw() {
+                    if let Some(buffer) = buffer_manager.get(view.buffer_id()) {
+                        let _ = view.draw_with_buffer(buffer);
+                        view.mark_redraw(false);
+                    }
+                }
             }
         }
     }

@@ -7,7 +7,11 @@ For detailed notes please refer to /notes.md
 
 ## Demo
 
+### Single Pane
 ![demo](./demo.gif)
+
+### Multi-Pane Support
+![pane](./pane.gif)
 
 ## Overview & Design Philosophy
 
@@ -18,10 +22,23 @@ Instead of jumping directly into features, the editor was built in layers:
 - Editing
 - Search
 - Highlighting
+- Pane Abstraction
 - Extensibility
 
 Each phase builds on the previous one, gradually evolving the editor from a
 simple terminal viewer into a fully functional text editor.
+
+For more details on the architecture, check out my [Medium blog](INSERT_MEDIUM_BLOG_LINK_HERE).
+
+### Pane Abstraction
+
+The editor now supports a sophisticated pane management system:
+
+- **Layout Tree**: A recursive structure that manages splitting the screen horizontally and vertically.
+- **Pane Manager**: Tracks active panes and handles focus switching.
+- **View Component**: Each pane contains a `View` which is responsible for rendering and editing its own buffer.
+
+This allows for flexible window management, similar to modern editors like Vim or VSCode.
 
 Some guiding principles during development:
 
@@ -102,3 +119,4 @@ However, the current implementation has diverged significantly and includes
 additional features, architectural changes, and enhancements.
 
 This project is licensed under the MIT License.
+What if i do something here 

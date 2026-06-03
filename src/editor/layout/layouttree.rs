@@ -36,6 +36,8 @@ impl Default for LayoutTree {
         Self::new(0, Rect::default())
     }
 }
+const MIN_PANE_SIZE: usize = 4; // minimum size to split is 2 * MIN_PANE_SIZE
+
 impl LayoutTree {
     // construction
     pub fn new(initial_pane_id: usize, rect: Rect) -> Self {
@@ -62,7 +64,7 @@ impl LayoutTree {
             }
 
             LayoutNode::Split {
-                split_id,
+                split_id: _,
                 direction,
                 ratio,
                 first,
@@ -73,8 +75,12 @@ impl LayoutTree {
 
                 match direction {
                     SplitDirection::Vertical => {
-                        let first_width = ((rect.size.width as f32 * *ratio) as usize)
-                            .clamp(1, rect.size.width.saturating_sub(1));
+                        let max_width = rect.size.width.saturating_sub(1);
+                        let first_width = if max_width >= 1 {
+                            ((rect.size.width as f32 * *ratio) as usize).clamp(1, max_width)
+                        } else {
+                            rect.size.width
+                        };
                         let second_width = rect.size.width.saturating_sub(first_width);
 
                         let first_rect = Rect {
@@ -101,8 +107,12 @@ impl LayoutTree {
                     }
 
                     SplitDirection::Horizontal => {
-                        let first_height = ((rect.size.height as f32 * *ratio) as usize)
-                            .clamp(1, rect.size.height.saturating_sub(1));
+                        let max_height = rect.size.height.saturating_sub(1);
+                        let first_height = if max_height >= 1 {
+                            ((rect.size.height as f32 * *ratio) as usize).clamp(1, max_height)
+                        } else {
+                            rect.size.height
+                        };
                         let second_height = rect.size.height.saturating_sub(first_height);
 
                         let first_rect = Rect {
@@ -163,6 +173,17 @@ impl LayoutTree {
         match node {
             LayoutNode::Leaf { pane_id, rect } => {
                 if *pane_id == target_pane_id {
+                    // Check for minimum size
+                    let min_needed = 2 * MIN_PANE_SIZE;
+                    let current_size = match direction {
+                        SplitDirection::Vertical => rect.size.width,
+                        SplitDirection::Horizontal => rect.size.height,
+                    };
+
+                    if current_size < min_needed {
+                        return Err(Error::other("Pane too small to split"));
+                    }
+
                     let old_rect = *rect;
 
                     let old_leaf = LayoutNode::Leaf {

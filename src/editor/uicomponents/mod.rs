@@ -2,7 +2,7 @@ mod commandbar;
 mod messagebar;
 mod statusbar;
 mod uicomponent;
-mod view;
+pub mod view;
 
 pub use commandbar::CommandBar;
 pub use messagebar::MessageBar;

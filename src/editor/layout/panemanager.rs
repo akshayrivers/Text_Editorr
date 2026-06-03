@@ -71,12 +71,4 @@ impl PaneManager {
     pub fn remove_pane(&mut self, pane_id: usize) -> Option<Pane> {
         self.panes.remove(&pane_id)
     }
-
-    pub fn iter(&self) -> impl Iterator<Item = &Pane> {
-        self.panes.values()
-    }
-
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Pane> {
-        self.panes.values_mut()
-    }
 }

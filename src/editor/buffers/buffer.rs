@@ -1,7 +1,7 @@
-use super::super::super::AnnotatedString;
-use super::FileInfo;
-use super::Highlighter;
-use super::Line;
+use crate::editor::annotatedstring::AnnotatedString;
+use crate::editor::line::Line;
+use crate::editor::uicomponents::view::fileinfo::FileInfo;
+use crate::editor::uicomponents::view::highlighter::Highlighter;
 use crate::prelude::*;
 use std::io::Write;
 use std::ops::Range;
