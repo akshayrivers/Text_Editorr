@@ -67,6 +67,8 @@ pub struct Editor {
     title: String,
     quit_times: u8,
     dragging_split: Option<usize>,
+    dragging_pane: Option<usize>,
+    drag_offset: Position,
 }
 
 impl Editor {
@@ -105,6 +107,8 @@ impl Editor {
             pane_id: initial_pane_id,
             content: PaneContent::TextView(initial_view),
             active: true,
+            is_floating: false,
+            z_index: 0,
         };
 
         // Phase II systems
@@ -132,6 +136,8 @@ impl Editor {
 
             quit_times: 0,
             dragging_split: None,
+            dragging_pane: None,
+            drag_offset: Position::default(),
         };
 
         editor.handle_resize_command(terminal_size);
@@ -212,10 +218,19 @@ impl Editor {
 
         // Panes
         if height > 2 {
+            // 1. Render Tiled Panes
             for (pane_id, _) in self.layout_tree.collect_leaf_layouts() {
                 if let Some(pane) = self.pane_manager.get_pane_mut(pane_id) {
-                    pane.render(&self.buffer_manager);
+                    if !pane.is_floating {
+                        pane.render(&self.buffer_manager);
+                    }
                 }
+            }
+
+            // 2. Render Floating Panes (sorted by z-index)
+            let mut floating_panes = self.pane_manager.get_floating_panes_sorted_mut();
+            for pane in floating_panes.iter_mut() {
+                pane.render(&self.buffer_manager);
             }
         }
 
@@ -339,25 +354,76 @@ impl Editor {
                 self.pane_left_drag(position);
             }
 
-            Mouse(LeftRelease(position)) => {
+            Mouse(LeftRelease(_position)) => {
                 self.pane_left_release();
             }
-            Mouse(ScrollDown(position)) => {
+            Mouse(ScrollDown(_position)) => {
                 self.pane_scroll_down();
             }
-            Mouse(ScrollUp(position)) => {
+            Mouse(ScrollUp(_position)) => {
                 self.pane_scroll_up();
             }
         }
     }
+    fn set_active_pane(&mut self, pane_id: usize) {
+        if let Some(current_active_id) = self.pane_manager.active_pane().map(|p| p.pane_id) {
+            if current_active_id == pane_id {
+                return;
+            }
+        }
+
+        self.pane_manager.set_active_pane(pane_id);
+        // When focus changes, we must redraw all panes because a tiled pane redrawing
+        // will overwrite any floating panes on top of it.
+        self.mark_all_panes_for_redraw();
+    }
     fn pane_left_click(&mut self, position: Position) {
-        // check if user clicked on a split divider
+        // 1. Check Floating Panes (top-down)
+        let mut target_pane_id = None;
+        let mut is_drag_click = false;
+        {
+            let mut floating_panes = self.pane_manager.get_floating_panes_sorted_mut();
+            floating_panes.reverse(); // descending order
+
+            for pane in floating_panes {
+                if let Some(view) = pane.view() {
+                    let rect = view.rect();
+                    let inside = position.row >= rect.position.row
+                        && position.row < rect.position.row + rect.size.height
+                        && position.col >= rect.position.col
+                        && position.col < rect.position.col + rect.size.width;
+
+                    if inside {
+                        target_pane_id = Some(pane.pane_id);
+                        // Check if click is on the top border (for dragging)
+                        if position.row == rect.position.row {
+                            is_drag_click = true;
+                            self.drag_offset = Position {
+                                col: position.col.saturating_sub(rect.position.col),
+                                row: position.row.saturating_sub(rect.position.row),
+                            };
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+
+        if let Some(id) = target_pane_id {
+            self.set_active_pane(id);
+            if is_drag_click {
+                self.dragging_pane = Some(id);
+            }
+            return;
+        }
+
+        // 2. check if user clicked on a split divider
         if let Some(split) = self.layout_tree.find_split(position) {
             self.dragging_split = Some(split.id);
             return;
         }
 
-        // otherwise focus pane under cursor
+        // 3. otherwise focus tiled pane under cursor
         for (pane_id, rect) in self.layout_tree.collect_leaf_layouts() {
             let inside = position.row >= rect.position.row
                 && position.row < rect.position.row + rect.size.height
@@ -365,7 +431,7 @@ impl Editor {
                 && position.col < rect.position.col + rect.size.width;
 
             if inside {
-                self.pane_manager.set_active_pane(pane_id);
+                self.set_active_pane(pane_id);
                 break;
             }
         }
@@ -385,10 +451,22 @@ impl Editor {
 
             self.layout_tree.compute_layout(editor_rect);
             self.sync_pane_rects();
+            self.mark_all_panes_for_redraw();
+        } else if let Some(pane_id) = self.dragging_pane {
+            if let Some(pane) = self.pane_manager.get_pane_mut(pane_id) {
+                if let Some(view) = pane.view_mut() {
+                    let mut rect = view.rect();
+                    rect.position.col = position.col.saturating_sub(self.drag_offset.col);
+                    rect.position.row = position.row.saturating_sub(self.drag_offset.row);
+                    view.set_size(rect);
+                }
+            }
+            self.mark_all_panes_for_redraw();
         }
     }
     fn pane_left_release(&mut self) {
         self.dragging_split = None;
+        self.dragging_pane = None;
     }
 
     fn pane_scroll_down(&mut self) {
@@ -786,27 +864,77 @@ impl Editor {
                 let id = self.pane_manager.active_pane().unwrap().pane_id;
                 self.close_pane(id);
             }
+            ["float"] => {
+                let id = self.pane_manager.active_pane().unwrap().pane_id;
+                self.toggle_floating(id);
+            }
 
-            _ => self.update_message("Invalid command! Try 'focus 1' or 'close 1' or close"),
+            _ => self.update_message("Invalid command! Try 'focus 1', 'close 1', 'close' or 'float'"),
+        }
+    }
+    fn toggle_floating(&mut self, id: usize) {
+        if let Some(pane) = self.pane_manager.get_pane_mut(id) {
+            if pane.is_floating {
+                // To make it tiled again, we'd need to insert it back into the layout tree.
+                // For now, let's just support making it floating.
+                self.update_message("Pane is already floating.");
+                return;
+            }
+
+            // Remove from layout tree
+            if self.layout_tree.remove_node(id).is_ok() {
+                pane.is_floating = true;
+                pane.z_index = 10; // high z-index by default
+                                   // Keep its current size/pos or give it a default floating size?
+                if let Some(view) = pane.view_mut() {
+                    let mut rect = view.rect();
+                    rect.size.height = rect.size.height.min(15);
+                    rect.size.width = rect.size.width.min(40);
+                    view.set_size(rect);
+                }
+
+                self.handle_resize_command(self.terminal_size); // re-tiling the rest
+                self.update_message(&format!("Pane {} is now floating", id));
+            } else {
+                self.update_message("Cannot float the last tiled pane!");
+            }
         }
     }
     fn close_pane(&mut self, id: usize) {
-        // Remove from the layout tree
-        if self.layout_tree.remove_node(id).is_ok() {
-            // Remove from pane manager
-            self.pane_manager.remove_pane(id);
+        let is_floating = self
+            .pane_manager
+            .get_pane(id)
+            .map_or(false, |p| p.is_floating);
 
-            // need to assign new pane_id in the pane manager
-            if self.pane_manager.active_pane().is_none() {
-                if let Some((any_id, _)) = self.layout_tree.collect_leaf_layouts().first() {
-                    self.pane_manager.set_active_pane(*any_id);
+        if is_floating {
+            self.pane_manager.remove_pane(id);
+            self.update_message(&format!("Floating pane {} closed", id));
+        } else {
+            // Remove from the layout tree
+            if self.layout_tree.remove_node(id).is_ok() {
+                // Remove from pane manager
+                self.pane_manager.remove_pane(id);
+
+                // we resize, ultimately we should improve the above logic in future
+                self.handle_resize_command(self.terminal_size);
+                self.update_message(&format!("Pane {} closed", id));
+            } else {
+                self.update_message("Cannot close the last tiled pane!");
+                return;
+            }
+        }
+
+        // need to assign new pane_id in the pane manager
+        if self.pane_manager.active_pane().is_none() {
+            if let Some((any_id, _)) = self.layout_tree.collect_leaf_layouts().first() {
+                self.pane_manager.set_active_pane(*any_id);
+            } else {
+                // maybe check floating panes if no tiled ones?
+                let next_id = self.pane_manager.iter().next().map(|p| p.pane_id);
+                if let Some(id) = next_id {
+                    self.pane_manager.set_active_pane(id);
                 }
             }
-            // we resize, ultimately we should improve the above logic in future
-            self.handle_resize_command(self.terminal_size);
-            self.update_message(&format!("Pane {} closed", id));
-        } else {
-            self.update_message("Cannot close the last pane!");
         }
     }
     // region: message & command bar
@@ -848,6 +976,13 @@ impl Editor {
         for (pane_id, rect) in self.layout_tree.collect_leaf_layouts() {
             if let Some(pane) = self.pane_manager.get_pane_mut(pane_id) {
                 pane.resize(rect);
+            }
+        }
+    }
+    fn mark_all_panes_for_redraw(&mut self) {
+        for pane in self.pane_manager.iter_mut() {
+            if let Some(view) = pane.view_mut() {
+                view.mark_redraw(true);
             }
         }
     }

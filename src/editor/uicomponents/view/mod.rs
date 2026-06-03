@@ -91,6 +91,9 @@ impl View {
             self.mark_redraw(true);
         }
     }
+    pub fn rect(&self) -> Rect {
+        self.rect
+    }
     pub fn handle_edit_command(&mut self, command: Edit, buffer: &mut Buffer) {
         match command {
             Edit::Insert(character) => self.insert_char(character, buffer),

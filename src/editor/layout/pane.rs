@@ -29,6 +29,8 @@ pub struct Pane {
     pub pane_id: usize,
     pub content: PaneContent,
     pub active: bool,
+    pub is_floating: bool,
+    pub z_index: usize,
 }
 
 impl Pane {
