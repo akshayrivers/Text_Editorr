@@ -1,10 +1,12 @@
 mod commandbar;
+mod fileexplorer;
 mod messagebar;
 mod statusbar;
 mod uicomponent;
 pub mod view;
 
 pub use commandbar::CommandBar;
+pub use fileexplorer::FileExplorer;
 pub use messagebar::MessageBar;
 pub use statusbar::StatusBar;
 pub use uicomponent::UIComponent;

@@ -14,7 +14,6 @@ use searchdirection::SearchDirection;
 pub mod highlighter;
 use highlighter::Highlighter;
 pub mod fileinfo;
-use fileinfo::FileInfo;
 mod searchinfo;
 use searchinfo::SearchInfo;
 
@@ -90,9 +89,6 @@ impl View {
             self.is_active = active;
             self.mark_redraw(true);
         }
-    }
-    pub fn rect(&self) -> Rect {
-        self.rect
     }
     pub fn handle_edit_command(&mut self, command: Edit, buffer: &mut Buffer) {
         match command {
@@ -581,52 +577,16 @@ impl View {
     }
     // endregion
 
-    pub fn draw_with_buffer(&mut self, buffer: &Buffer) -> Result<(), Error> {
-        let rect = self.rect;
+    pub fn draw_content_with_buffer(&mut self, rect: Rect, buffer: &Buffer) -> Result<(), Error> {
+        let Size { height, width } = rect.size;
 
-        let Rect { position, size } = rect;
-
-        let Position {
-            row: origin_row,
-            col: origin_col,
-        } = position;
-
-        let Size { height, width } = size;
-
-        // avoid tiny pane crashes
-        if height < 3 || width < 3 {
+        if height == 0 || width == 0 {
             return Ok(());
         }
 
-        // draw pane border first
-        Terminal::draw_border(rect)?;
-        let label = if self.is_active {
-            format!("|PANE {} (ACTIVE)|", self.id)
-        } else {
-            format!("|PANE {}|", self.id)
-        };
-        let _ = Terminal::print_at(
-            Position {
-                col: rect.position.col.saturating_add(2),
-                row: rect.position.row,
-            },
-            &label,
-        );
-        // inner content area
-        let content_rect = Rect {
-            position: Position {
-                row: origin_row + 1,
-                col: origin_col + 1,
-            },
-            size: Size {
-                height: height.saturating_sub(2),
-                width: width.saturating_sub(2),
-            },
-        };
+        let _origin_row = rect.position.row;
 
-        let end_row = origin_row.saturating_add(content_rect.size.height);
-
-        let top_third = content_rect.size.height.div_ceil(3);
+        let top_third = height.div_ceil(3);
 
         let scroll_top = self.scroll_offset.row;
 
@@ -644,29 +604,30 @@ impl View {
         );
 
         // full document highlighting
-        for current_row in 0..end_row.saturating_add(scroll_top) {
+        let end_line_idx = buffer.height().min(scroll_top.saturating_add(height));
+        for current_row in 0..end_line_idx {
             buffer.highlight(current_row, &mut highlighter);
         }
 
-        // render inside bordered content area
-        for screen_row in 0..content_rect.size.height {
+        // render inside content area
+        for screen_row in 0..height {
             let line_idx = screen_row.saturating_add(scroll_top);
 
             let left = self.scroll_offset.col;
-            let right = left.saturating_add(content_rect.size.width);
+            let right = left.saturating_add(width);
 
             if let Some(annotated_string) =
                 buffer.get_highlighted_substring(line_idx, left..right, &highlighter)
             {
-                Terminal::print_annotated_rect(content_rect, screen_row, &annotated_string)?;
+                Terminal::print_annotated_rect(rect, screen_row, &annotated_string)?;
             } else if screen_row == top_third && buffer.is_empty() {
                 Self::render_line(
-                    content_rect,
+                    rect,
                     screen_row,
-                    &Self::build_welcome_message(content_rect.size.width),
+                    &Self::build_welcome_message(width),
                 )?;
             } else {
-                Self::render_line(content_rect, screen_row, "~")?;
+                Self::render_line(rect, screen_row, "~")?;
             }
         }
 
@@ -686,6 +647,10 @@ impl UIComponent for View {
     fn set_size(&mut self, rect: Rect) {
         self.rect = rect;
         // self.scroll_text_location_into_view(); // Needs buffer
+    }
+
+    fn rect(&self) -> Rect {
+        self.rect
     }
 
     fn draw(&mut self) -> Result<(), Error> {

@@ -32,6 +32,7 @@ impl PaneManager {
             active: false,
             is_floating: false,
             z_index: 0,
+            is_minimized: false,
         };
 
         self.panes.insert(pane_id, pane);
@@ -48,6 +49,7 @@ impl PaneManager {
             active: false,
             is_floating: true,
             z_index,
+            is_minimized: false,
         };
 
         self.panes.insert(pane_id, pane);

@@ -74,6 +74,10 @@ impl UIComponent for CommandBar {
         self.rect = rect;
     }
 
+    fn rect(&self) -> Rect {
+        self.rect
+    }
+
     fn draw(&mut self) -> Result<(), Error> {
         let width = self.rect.size.width;
 

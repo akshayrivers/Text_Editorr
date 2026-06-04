@@ -35,7 +35,7 @@ use self::command::{
 };
 use layout::{LayoutTree, Pane, PaneContent, PaneManager};
 use terminal::Terminal;
-use uicomponents::{CommandBar, MessageBar, StatusBar, UIComponent, View};
+use uicomponents::{CommandBar, FileExplorer, MessageBar, StatusBar, UIComponent, View};
 
 const QUIT_TIMES: u8 = 3;
 
@@ -109,6 +109,7 @@ impl Editor {
             active: true,
             is_floating: false,
             z_index: 0,
+            is_minimized: false,
         };
 
         // Phase II systems
@@ -195,7 +196,6 @@ impl Editor {
             self.refresh_status();
         }
     }
-
     fn refresh_screen(&mut self) {
         if self.terminal_size.height == 0 || self.terminal_size.width == 0 {
             return;
@@ -236,13 +236,18 @@ impl Editor {
 
         // Caret
         let active_pane = self.pane_manager.active_pane().unwrap();
-        let active_view = active_pane.view().unwrap();
-        let buffer = self.buffer_manager.get(active_view.buffer_id()).unwrap();
-
         let new_caret_pos = if self.in_prompt() {
             self.command_bar.caret_position()
+        } else if let Some(view) = active_pane.view() {
+            let buffer = self.buffer_manager.get(view.buffer_id()).unwrap();
+            view.caret_position(buffer)
         } else {
-            active_view.caret_position(buffer)
+            // For explorer, maybe just hide caret or put it at top left of pane
+            let rect = active_pane.component().rect();
+            Position {
+                row: rect.position.row + 1,
+                col: rect.position.col + 1,
+            }
         };
 
         debug_assert!(new_caret_pos.col <= width);
@@ -255,10 +260,19 @@ impl Editor {
     }
     pub fn refresh_status(&mut self) {
         let active_pane = self.pane_manager.active_pane().unwrap();
-        let active_view = active_pane.view().unwrap();
-        let buffer = self.buffer_manager.get(active_view.buffer_id()).unwrap();
-
-        let status = active_view.get_status(buffer);
+        let status = if let Some(view) = active_pane.view() {
+            let buffer = self.buffer_manager.get(view.buffer_id()).unwrap();
+            view.get_status(buffer)
+        } else {
+            // Default status for non-view panes
+            DocumentStatus {
+                file_name: "Explorer".to_string(),
+                total_lines: 0,
+                current_line_idx: 0,
+                is_modified: false,
+                file_type: FileType::Text,
+            }
+        };
         let title = format!("{} - {NAME}", status.file_name);
         self.status_bar.update_status(status);
         if title != self.title && matches!(Terminal::set_title(&title), Ok(())) {
@@ -308,39 +322,29 @@ impl Editor {
             System(Redo) => self.handle_redo_command(),
             System(Undo) => self.handle_undo_command(),
             Edit(edit_command) => {
-                let buffer_id = self
-                    .pane_manager
-                    .active_pane()
-                    .unwrap()
-                    .view()
-                    .unwrap()
-                    .buffer_id();
-                let buffer = self.buffer_manager.get_mut(buffer_id).unwrap();
-                let view = self
-                    .pane_manager
-                    .active_pane_mut()
-                    .unwrap()
-                    .view_mut()
-                    .unwrap();
-                view.handle_edit_command(edit_command, buffer);
+                if let Some(pane) = self.pane_manager.active_pane_mut() {
+                    if let PaneContent::TextView(view) = &mut pane.content {
+                        let buffer_id = view.buffer_id();
+                        let buffer = self.buffer_manager.get_mut(buffer_id).unwrap();
+                        view.handle_edit_command(edit_command, buffer);
+                    }
+                }
             }
 
             Move(move_command) => {
-                let buffer_id = self
-                    .pane_manager
-                    .active_pane()
-                    .unwrap()
-                    .view()
-                    .unwrap()
-                    .buffer_id();
-                let buffer = self.buffer_manager.get(buffer_id).unwrap();
-                let view = self
-                    .pane_manager
-                    .active_pane_mut()
-                    .unwrap()
-                    .view_mut()
-                    .unwrap();
-                view.handle_move_command(move_command, buffer);
+                if let Some(pane) = self.pane_manager.active_pane_mut() {
+                    match &mut pane.content {
+                        PaneContent::TextView(view) => {
+                            let buffer_id = view.buffer_id();
+                            let buffer = self.buffer_manager.get(buffer_id).unwrap();
+                            view.handle_move_command(move_command, buffer);
+                        }
+                        PaneContent::FileExplorer(explorer) => {
+                            explorer.handle_move_command(move_command);
+                        }
+                        _ => {}
+                    }
+                }
             }
             System(SplitHorizontal) => self.split_active_pane(SplitDirection::Horizontal),
 
@@ -381,6 +385,7 @@ impl Editor {
         // 1. Check Floating Panes (top-down)
         let mut target_pane_id = None;
         let mut is_drag_click = false;
+        let mut drag_offset = Position::default();
         {
             let mut floating_panes = self.pane_manager.get_floating_panes_sorted_mut();
             floating_panes.reverse(); // descending order
@@ -395,13 +400,22 @@ impl Editor {
 
                     if inside {
                         target_pane_id = Some(pane.pane_id);
-                        // Check if click is on the top border (for dragging)
+                        // Check if click is on the top border (for dragging and buttons)
                         if position.row == rect.position.row {
-                            is_drag_click = true;
-                            self.drag_offset = Position {
-                                col: position.col.saturating_sub(rect.position.col),
-                                row: position.row.saturating_sub(rect.position.row),
-                            };
+                            let close_btn_col = rect.position.col + rect.size.width.saturating_sub(2);
+                            let min_btn_col = rect.position.col + rect.size.width.saturating_sub(4);
+
+                            if position.col >= close_btn_col && position.col < close_btn_col + 3 {
+                                // Handled below to avoid multiple borrows
+                            } else if position.col >= min_btn_col && position.col < min_btn_col + 3 {
+                                // Handled below to avoid multiple borrows
+                            } else {
+                                is_drag_click = true;
+                                drag_offset = Position {
+                                    col: position.col.saturating_sub(rect.position.col),
+                                    row: position.row.saturating_sub(rect.position.row),
+                                };
+                            }
                         }
                         break;
                     }
@@ -410,9 +424,27 @@ impl Editor {
         }
 
         if let Some(id) = target_pane_id {
+            let rect = self.pane_manager.get_pane(id).unwrap().component().rect();
+            let close_btn_col = rect.position.col + rect.size.width.saturating_sub(2);
+            let min_btn_col = rect.position.col + rect.size.width.saturating_sub(4);
+
+            if position.row == rect.position.row {
+                if position.col >= close_btn_col && position.col < close_btn_col + 3 {
+                    self.close_pane(id);
+                    return;
+                } else if position.col >= min_btn_col && position.col < min_btn_col + 3 {
+                    if let Some(p) = self.pane_manager.get_pane_mut(id) {
+                        p.is_minimized = !p.is_minimized;
+                        self.mark_all_panes_for_redraw();
+                    }
+                    return;
+                }
+            }
+
             self.set_active_pane(id);
             if is_drag_click {
                 self.dragging_pane = Some(id);
+                self.drag_offset = drag_offset;
             }
             return;
         }
@@ -424,6 +456,7 @@ impl Editor {
         }
 
         // 3. otherwise focus tiled pane under cursor
+        let mut tiled_target_id = None;
         for (pane_id, rect) in self.layout_tree.collect_leaf_layouts() {
             let inside = position.row >= rect.position.row
                 && position.row < rect.position.row + rect.size.height
@@ -431,9 +464,30 @@ impl Editor {
                 && position.col < rect.position.col + rect.size.width;
 
             if inside {
-                self.set_active_pane(pane_id);
+                tiled_target_id = Some((pane_id, rect));
                 break;
             }
+        }
+
+        if let Some((pane_id, rect)) = tiled_target_id {
+            // Check for buttons on tiled panes too
+            if position.row == rect.position.row {
+                let close_btn_col = rect.position.col + rect.size.width.saturating_sub(2);
+                let min_btn_col = rect.position.col + rect.size.width.saturating_sub(4);
+
+                if position.col >= close_btn_col && position.col < close_btn_col + 3 {
+                    self.close_pane(pane_id);
+                    return;
+                } else if position.col >= min_btn_col && position.col < min_btn_col + 3 {
+                    if let Some(p) = self.pane_manager.get_pane_mut(pane_id) {
+                        p.is_minimized = !p.is_minimized;
+                        self.mark_all_panes_for_redraw();
+                    }
+                    return;
+                }
+            }
+
+            self.set_active_pane(pane_id);
         }
     }
 
@@ -868,9 +922,38 @@ impl Editor {
                 let id = self.pane_manager.active_pane().unwrap().pane_id;
                 self.toggle_floating(id);
             }
+            ["explore"] => {
+                self.open_file_explorer();
+            }
 
-            _ => self.update_message("Invalid command! Try 'focus 1', 'close 1', 'close' or 'float'"),
+            _ => self.update_message("Invalid command! Try 'focus 1', 'close 1', 'close', 'float' or 'explore'"),
         }
+    }
+    fn open_file_explorer(&mut self) {
+        let active_pane_id = self
+            .pane_manager
+            .active_pane()
+            .map(|pane| pane.pane_id)
+            .expect("No active pane");
+
+        // For now, let's just replace the active pane content with FileExplorer
+        // or we could split it? Let's split it vertically by default for explorer
+        let explorer = FileExplorer::default();
+        let new_pane_id = self
+            .pane_manager
+            .create_pane(PaneContent::FileExplorer(explorer));
+
+        if self
+            .layout_tree
+            .split_pane(active_pane_id, new_pane_id, SplitDirection::Vertical, 0.2)
+            .is_err()
+        {
+            self.update_message("Failed to open explorer");
+            return;
+        }
+
+        self.handle_resize_command(self.terminal_size);
+        self.pane_manager.set_active_pane(new_pane_id);
     }
     fn toggle_floating(&mut self, id: usize) {
         if let Some(pane) = self.pane_manager.get_pane_mut(id) {
