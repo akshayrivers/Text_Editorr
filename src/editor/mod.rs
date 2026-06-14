@@ -115,6 +115,7 @@ impl Editor {
             is_floating: false,
             z_index: 0,
             is_minimized: false,
+            rect: root_rect,
         };
 
         // Phase II systems

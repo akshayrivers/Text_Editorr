@@ -1,4 +1,5 @@
 use crate::editor::layout::{Pane, PaneContent};
+use crate::prelude::Rect;
 use std::collections::HashMap;
 
 #[derive(Default)]
@@ -33,6 +34,7 @@ impl PaneManager {
             is_floating: false,
             z_index: 0,
             is_minimized: false,
+            rect: Rect::default(),
         };
 
         self.panes.insert(pane_id, pane);
@@ -50,6 +52,7 @@ impl PaneManager {
             is_floating: true,
             z_index,
             is_minimized: false,
+            rect: Rect::default(),
         };
 
         self.panes.insert(pane_id, pane);

@@ -159,19 +159,12 @@ impl UIComponent for FileExplorer {
     }
 
     fn set_size(&mut self, rect: Rect) {
-        let old_rect = self.rect;
-        self.rect = rect;
-
-        if old_rect.size != rect.size {
-            self.adjust_scroll();
-        }
-
-        let size_changed = self.rect.size != rect.size;
-        self.rect = rect;
-
-        if size_changed {
+        if self.rect.size != rect.size {
+            self.rect = rect;
             self.adjust_scroll();
             self.needs_redraw = true;
+        } else {
+            self.rect = rect;
         }
     }
 

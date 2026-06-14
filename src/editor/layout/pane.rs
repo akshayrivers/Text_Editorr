@@ -74,37 +74,33 @@ impl Pane {
     }
 
     pub fn close_button_col(&self) -> usize {
-        let rect = self.component().rect();
-        rect.position.col + rect.size.width.saturating_sub(4)
+        self.rect.position.col + self.rect.size.width.saturating_sub(4)
     }
 
     pub fn min_button_col(&self) -> usize {
-        let rect = self.component().rect();
-        rect.position.col + rect.size.width.saturating_sub(8)
+        self.rect.position.col + self.rect.size.width.saturating_sub(8)
     }
 
     pub fn is_on_close_button(&self, pos: Position) -> bool {
-        let rect = self.component().rect();
-        pos.row == rect.position.row
+        pos.row == self.rect.position.row
             && pos.col >= self.close_button_col()
             && pos.col < self.close_button_col() + 3
     }
 
     pub fn is_on_min_button(&self, pos: Position) -> bool {
-        let rect = self.component().rect();
-        pos.row == rect.position.row
+        pos.row == self.rect.position.row
             && pos.col >= self.min_button_col()
             && pos.col < self.min_button_col() + 3
     }
 
     pub fn is_on_title_bar(&self, pos: Position) -> bool {
-        let rect = self.component().rect();
-        pos.row == rect.position.row
-            && pos.col >= rect.position.col
-            && pos.col < rect.position.col + rect.size.width
+        pos.row == self.rect.position.row
+            && pos.col >= self.rect.position.col
+            && pos.col < self.rect.position.col + self.rect.size.width
     }
 
     pub fn resize(&mut self, rect: Rect) {
+        self.rect = rect;
         self.component_mut().set_size(rect);
     }
 
@@ -114,7 +110,7 @@ impl Pane {
             // for now let's always check redraw
         }
 
-        let rect = self.component().rect();
+        let rect = self.rect;
         let Size { height, width } = rect.size;
 
         if height < 1 || width < 4 {
