@@ -111,4 +111,26 @@ impl PaneManager {
         floating.sort_by_key(|p| p.z_index);
         floating
     }
+
+    pub fn bring_to_front(&mut self, pane_id: usize) {
+        if let Some(pane) = self.panes.get(&pane_id) {
+            if !pane.is_floating {
+                return;
+            }
+        } else {
+            return;
+        }
+
+        let max_z = self
+            .panes
+            .values()
+            .filter(|p| p.is_floating)
+            .map(|p| p.z_index)
+            .max()
+            .unwrap_or(0);
+
+        if let Some(pane) = self.panes.get_mut(&pane_id) {
+            pane.z_index = max_z + 1;
+        }
+    }
 }

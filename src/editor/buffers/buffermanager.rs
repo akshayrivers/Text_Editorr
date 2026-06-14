@@ -30,4 +30,7 @@ impl BufferManager {
     pub fn remove(&mut self, id: usize) -> Option<Buffer> {
         self.buffers.remove(&id)
     }
+    pub fn iter(&self) -> impl Iterator<Item = (&usize, &Buffer)> {
+        self.buffers.iter()
+    }
 }
