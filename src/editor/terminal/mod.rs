@@ -3,7 +3,7 @@ use super::AnnotatedString;
 use crate::prelude::*;
 use attribute::Attribute;
 use crossterm::cursor::{Hide, MoveTo, Show};
-use crossterm::event::{DisableMouseCapture, EnableMouseCapture, Event, MouseEvent};
+use crossterm::event::{DisableMouseCapture, EnableMouseCapture};
 use crossterm::style::{Print, ResetColor, SetBackgroundColor, SetForegroundColor};
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, size, Clear, ClearType, DisableLineWrap, EnableLineWrap,

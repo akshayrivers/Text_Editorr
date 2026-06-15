@@ -16,6 +16,8 @@ pub trait UIComponent {
     // Updates the size. Needs to be implemented by each component.
     fn set_size(&mut self, rect: Rect);
 
+    fn rect(&self) -> Rect;
+
     // Draw this component if it's visible and in need of redrawing
     // in my design the rect will be owned by the component itself
     fn render(&mut self) {

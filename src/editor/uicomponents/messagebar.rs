@@ -49,6 +49,9 @@ impl UIComponent for MessageBar {
     fn needs_redraw(&self) -> bool {
         (!self.cleared_after_expiry && self.current_msg.is_expired()) || self.needs_redraw
     }
+    fn rect(&self) -> Rect {
+        self.rect
+    }
 
     fn set_size(&mut self, rect: Rect) {
         self.rect = rect;

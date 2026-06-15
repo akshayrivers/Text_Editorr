@@ -1,4 +1,5 @@
 use crate::editor::layout::{Pane, PaneContent};
+use crate::prelude::Rect;
 use std::collections::HashMap;
 
 #[derive(Default)]
@@ -24,19 +25,40 @@ impl PaneManager {
 
     pub fn create_pane(&mut self, content: PaneContent) -> usize {
         let pane_id = self.next_pane_id;
-
         self.next_pane_id += 1;
 
         let pane = Pane {
             pane_id,
             content,
             active: false,
+            is_floating: false,
+            z_index: 0,
+            is_minimized: false,
+            rect: Rect::default(),
         };
 
         self.panes.insert(pane_id, pane);
-
         pane_id
     }
+
+    pub fn create_floating_pane(&mut self, content: PaneContent, z_index: usize) -> usize {
+        let pane_id = self.next_pane_id;
+        self.next_pane_id += 1;
+
+        let pane = Pane {
+            pane_id,
+            content,
+            active: false,
+            is_floating: true,
+            z_index,
+            is_minimized: false,
+            rect: Rect::default(),
+        };
+
+        self.panes.insert(pane_id, pane);
+        pane_id
+    }
+
     pub fn get_pane(&self, pane_id: usize) -> Option<&Pane> {
         self.panes.get(&pane_id)
     }
@@ -67,7 +89,7 @@ impl PaneManager {
 
         self.active_pane = pane_id;
     }
-    // needs more work
+
     pub fn remove_pane(&mut self, pane_id: usize) -> Option<Pane> {
         self.panes.remove(&pane_id)
     }
@@ -78,5 +100,40 @@ impl PaneManager {
 
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Pane> {
         self.panes.values_mut()
+    }
+
+    pub fn get_floating_panes_sorted(&self) -> Vec<&Pane> {
+        let mut floating: Vec<&Pane> = self.panes.values().filter(|p| p.is_floating).collect();
+        floating.sort_by_key(|p| p.z_index);
+        floating
+    }
+
+    pub fn get_floating_panes_sorted_mut(&mut self) -> Vec<&mut Pane> {
+        let mut floating: Vec<&mut Pane> =
+            self.panes.values_mut().filter(|p| p.is_floating).collect();
+        floating.sort_by_key(|p| p.z_index);
+        floating
+    }
+
+    pub fn bring_to_front(&mut self, pane_id: usize) {
+        if let Some(pane) = self.panes.get(&pane_id) {
+            if !pane.is_floating {
+                return;
+            }
+        } else {
+            return;
+        }
+
+        let max_z = self
+            .panes
+            .values()
+            .filter(|p| p.is_floating)
+            .map(|p| p.z_index)
+            .max()
+            .unwrap_or(0);
+
+        if let Some(pane) = self.panes.get_mut(&pane_id) {
+            pane.z_index = max_z + 1;
+        }
     }
 }
