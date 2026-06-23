@@ -9,17 +9,17 @@ pub mod annotationtype;
 mod buffers;
 mod command;
 mod documentstatus;
+pub mod events;
 mod line;
 mod plugins;
 mod terminal;
 mod uicomponents;
-
 pub use annotationtype::AnnotationType;
+use events::EditorEvent;
 mod annotation;
 use annotatedstring::AnnotatedString;
 use annotation::Annotation;
 use buffers::{Buffer, BufferManager};
-use crossterm::event::{read, Event, KeyEvent, KeyEventKind};
 use documentstatus::DocumentStatus;
 use line::Line;
 mod filetype;
@@ -188,7 +188,7 @@ impl Editor {
             if self.should_quit {
                 break;
             }
-            match read() {
+            match Terminal::wait_for_event() {
                 Ok(event) => self.evaluate_event(event),
                 Err(err) => {
                     #[cfg(debug_assertions)]
@@ -292,17 +292,9 @@ impl Editor {
             self.title = title;
         }
     }
-    fn evaluate_event(&mut self, event: Event) {
-        let should_process = match &event {
-            Event::Key(KeyEvent { kind, .. }) => kind == &KeyEventKind::Press,
-            Event::Resize(_, _) => true,
-            Event::Mouse(_) => true,
-            _ => false,
-        };
-        if should_process {
-            if let Ok(command) = Command::try_from(event) {
-                self.process_command(command);
-            }
+    fn evaluate_event(&mut self, event: EditorEvent) {
+        if let Ok(command) = Command::try_from(event) {
+            self.process_command(command);
         }
     }
     // endregion

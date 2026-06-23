@@ -1,3 +1,5 @@
+// This will be turned into the TUI render layer with support of a render pipeline and hooks
+// Also the need to handle custom events is also there, so eventualy need to be smart about it
 mod attribute;
 use super::AnnotatedString;
 use crate::prelude::*;
@@ -291,5 +293,9 @@ impl Terminal {
         )?;
 
         Ok(())
+    }
+    pub fn wait_for_event() -> Result<crate::editor::events::EditorEvent, std::io::Error> {
+        let event = crossterm::event::read()?;
+        Ok(crate::editor::events::EditorEvent::from_crossterm(event))
     }
 }
