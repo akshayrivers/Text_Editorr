@@ -3,7 +3,7 @@ use crossterm::event::{
     KeyCode::{self, Char},
     KeyEvent, KeyModifiers,
 };
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum System {
     Save,
     Resize(Size),
