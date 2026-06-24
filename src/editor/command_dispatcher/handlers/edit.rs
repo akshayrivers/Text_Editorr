@@ -16,6 +16,7 @@ impl CommandHandler for EditHandler {
                     let buffer_id = view.buffer_id();
                     if let Some(buffer) = ctx.buffer_manager.get_mut(buffer_id) {
                         view.handle_edit_command(*edit_cmd, buffer);
+                        ctx.notify_buffer_changed(buffer_id);
                     }
                 }
             }

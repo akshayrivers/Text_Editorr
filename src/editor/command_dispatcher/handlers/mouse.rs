@@ -337,7 +337,7 @@ pub fn open_file_explorer(ctx: &mut EditorContext) {
     let explorer = FileExplorer::default();
     let new_pane_id = ctx
         .pane_manager
-        .create_pane(PaneContent::FileExplorer(explorer));
+        .create_pane(PaneContent::Plugin(Box::new(explorer)));
 
     if ctx
         .layout_tree

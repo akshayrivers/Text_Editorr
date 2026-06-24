@@ -20,6 +20,8 @@ pub struct EditorContext<'a> {
     pub dragging_split: &'a mut Option<usize>,
     pub dragging_pane: &'a mut Option<usize>,
     pub drag_offset: &'a mut Position,
+
+    pub buffer_changed: Option<usize>,
 }
 
 #[derive(Eq, PartialEq, Default, Clone, Copy)]
@@ -141,5 +143,8 @@ impl<'a> EditorContext<'a> {
         self.pane_manager.set_active_pane(pane_id);
         self.pane_manager.bring_to_front(pane_id);
         self.mark_all_panes_for_redraw();
+    }
+    pub fn notify_buffer_changed(&mut self, buffer_id: usize) {
+        self.buffer_changed = Some(buffer_id);
     }
 }

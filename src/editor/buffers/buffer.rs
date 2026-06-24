@@ -28,7 +28,9 @@ impl Buffer {
             .get(idx)
             .map_or(0, |line| line.width_until(until))
     }
-
+    pub fn lines_as_strings(&self) -> Vec<String> {
+        self.lines.iter().map(|l| l.to_string()).collect()
+    }
     pub fn get_highlighted_substring(
         &self,
         line_idx: LineIdx,

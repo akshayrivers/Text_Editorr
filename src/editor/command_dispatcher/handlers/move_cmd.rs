@@ -1,3 +1,4 @@
+// src/editor/command_dispatcher/handlers/move_cmd.rs
 use super::{CommandHandler, EditorContext};
 use crate::editor::command::Command;
 use crate::editor::layout::PaneContent;
@@ -14,15 +15,16 @@ impl CommandHandler for MoveHandler {
             if let Some(pane) = ctx.pane_manager.active_pane_mut() {
                 match &mut pane.content {
                     PaneContent::TextView(view) => {
+                        // Get buffer_id immutably, drop borrow, then get buffer
                         let buffer_id = view.buffer_id();
                         if let Some(buffer) = ctx.buffer_manager.get(buffer_id) {
                             view.handle_move_command(*move_cmd, buffer);
                         }
                     }
-                    PaneContent::FileExplorer(explorer) => {
-                        explorer.handle_move_command(*move_cmd);
+                    PaneContent::Plugin(_component) => {
+                        // need to figure this out soon
                     }
-                    _ => {}
+                    PaneContent::Popup(_) => {}
                 }
             }
             Ok(())

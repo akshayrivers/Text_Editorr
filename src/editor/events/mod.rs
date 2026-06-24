@@ -26,7 +26,11 @@ impl EditorEvent {
     #[allow(clippy::as_conversions)]
     pub fn from_crossterm(event: crossterm::event::Event) -> Self {
         use crossterm::event::{
-            Event, KeyCode as CtKeyCode, KeyEventKind, MouseButton as CtMouseButton, MouseEventKind,
+            Event,
+            KeyCode as CtKeyCode,
+            KeyEventKind,
+            MouseButton as CtMouseButton, // mouse button maybe will be implemented in future
+            MouseEventKind,
         };
 
         match event {

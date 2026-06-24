@@ -1,44 +1,84 @@
-use crate::editor::command::Command;
-use crate::editor::Editor;
-use crate::prelude::*;
+pub mod builtin;
+pub mod runtime;
 
-pub trait Plugin {
-    fn name(&self) -> &str;
-    fn on_command(&mut self, _editor: &mut Editor, _command: &Command) -> bool {
-        false
-    }
-    fn update(&mut self, _editor: &mut Editor) {}
+pub use runtime::PluginRuntime;
+
+use crate::editor::events::EditorEvent;
+use crate::{editor, prelude::*};
+use async_trait::async_trait;
+
+#[derive(Clone, Debug)]
+pub struct BufferSnapshot {
+    pub buffer_id: usize,
+    pub lines: Vec<String>,
+    pub file_name: Option<String>,
+    pub is_dirty: bool,
 }
 
-pub struct PluginManager {
-    plugins: Vec<Box<dyn Plugin>>,
+// PluginMessage
+
+// NOTE: Box<dyn Plugin> is Send + Sync so this is safe to send across threads.
+// We can't derive Clone/Debug because Box<dyn Plugin> doesn't impl them,
+// so we don't derive — the channel doesn't need it.
+pub enum PluginMessage {
+    /// Load a new plugin into the runtime.
+    LoadPlugin(Box<dyn Plugin>),
+    /// A raw EditorEvent cloned after core has handled it.
+    Event(EditorEvent),
+    /// A buffer was modified — here is a snapshot.
+    BufferChanged(BufferSnapshot),
+    /// Shut down the runtime.
+    Shutdown,
 }
 
-impl Default for PluginManager {
-    fn default() -> Self {
-        Self {
-            plugins: Vec::new(),
-        }
-    }
+// PluginResponse
+
+pub enum PluginResponse {
+    OpenFloatingPane {
+        plugin_name: String,
+        content_factory: Box<dyn FnOnce() -> crate::editor::layout::PaneContent + Send>,
+        rect: Rect,
+    },
+    ClosePane {
+        pane_id: usize,
+    },
+    UpdateMessage(String),
+    EmitCustomEvent(editor::events::customevent::CustomEvent),
+    RequestSnapshot {
+        buffer_id: usize,
+    },
 }
 
-impl PluginManager {
-    pub fn register(&mut self, plugin: Box<dyn Plugin>) {
-        self.plugins.push(plugin);
-    }
-
-    pub fn handle_command(&mut self, editor: &mut Editor, command: &Command) -> bool {
-        for plugin in &mut self.plugins {
-            if plugin.on_command(editor, command) {
-                return true;
+impl std::fmt::Debug for PluginResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::OpenFloatingPane {
+                plugin_name, rect, ..
+            } => {
+                write!(f, "OpenFloatingPane({plugin_name}, {rect:?})")
             }
+            Self::ClosePane { pane_id } => write!(f, "ClosePane({pane_id})"),
+            Self::UpdateMessage(m) => write!(f, "UpdateMessage({m})"),
+            Self::EmitCustomEvent(_) => write!(f, "EmitCustomEvent"),
+            Self::RequestSnapshot { buffer_id } => write!(f, "RequestSnapshot({buffer_id})"),
         }
-        false
+    }
+}
+
+// Plugin trait
+
+#[async_trait]
+pub trait Plugin: Send + Sync {
+    fn name(&self) -> &str;
+
+    async fn on_load(&mut self) {}
+    async fn on_unload(&mut self) {}
+
+    async fn on_event(&mut self, _event: &EditorEvent) -> Option<PluginResponse> {
+        None
     }
 
-    pub fn update_all(&mut self, editor: &mut Editor) {
-        for plugin in &mut self.plugins {
-            plugin.update(editor);
-        }
+    async fn on_buffer_change(&mut self, _snapshot: BufferSnapshot) -> Option<PluginResponse> {
+        None
     }
 }

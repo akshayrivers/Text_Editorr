@@ -69,7 +69,7 @@ fn handle_save_command(ctx: &mut EditorContext) {
                         .unwrap_or(false);
                     Some((id, loaded))
                 }
-                PaneContent::FileExplorer(_) => {
+                PaneContent::Plugin(_) => {
                     // Can't call ctx.update_message here — pane is still borrowed.
                     None
                 }

@@ -23,12 +23,15 @@ use annotatedstring::AnnotatedString;
 use annotation::Annotation;
 use buffers::{Buffer, BufferManager};
 use documentstatus::DocumentStatus;
+use events::EditorEvent;
 use line::Line;
 mod filetype;
 use filetype::FileType;
 mod layout;
 use layout::{LayoutTree, Pane, PaneContent, PaneManager};
-use plugins::PluginManager;
+use plugins::{
+    builtin::FileExplorerPlugin, BufferSnapshot, PluginMessage, PluginResponse, PluginRuntime,
+};
 use terminal::Terminal;
 use uicomponents::{BufferBar, CommandBar, MessageBar, StatusBar, UIComponent, View};
 
@@ -40,7 +43,10 @@ pub struct Editor {
     layout_tree: LayoutTree,
     pane_manager: PaneManager,
     buffer_manager: BufferManager,
-    plugin_manager: PluginManager,
+
+    /// The async plugin runtime — runs on its own thread.
+    plugin_runtime: PluginRuntime,
+
     buffer_bar: BufferBar,
     status_bar: StatusBar,
     message_bar: MessageBar,
@@ -53,6 +59,9 @@ pub struct Editor {
     dragging_pane: Option<usize>,
     drag_offset: Position,
     command_handler: HandlerRegistry,
+
+    /// Custom events emitted by plugins, injected into the next cycle.
+    pending_events: Vec<EditorEvent>,
 }
 
 impl Editor {
@@ -96,12 +105,16 @@ impl Editor {
         let pane_manager = PaneManager::new(initial_pane);
         let layout_tree = LayoutTree::new(0, root_rect);
 
+        // Spin up plugin runtime and register built-in plugins
+        let plugin_runtime = PluginRuntime::new();
+        plugin_runtime.load_plugin(Box::new(FileExplorerPlugin::new()));
+
         let mut editor = Self {
             should_quit: false,
             layout_tree,
             pane_manager,
             buffer_manager,
-            plugin_manager: PluginManager::default(),
+            plugin_runtime,
             buffer_bar: BufferBar::default(),
             status_bar: StatusBar::default(),
             message_bar: MessageBar::default(),
@@ -114,10 +127,13 @@ impl Editor {
             dragging_pane: None,
             drag_offset: Position::default(),
             command_handler: HandlerRegistry::default(),
+            pending_events: Vec::new(),
         };
 
         editor.handle_resize_command(terminal_size);
-        editor.update_message("HELP: Ctrl-F = find | Ctrl-S = save | Ctrl-Q = quit");
+        editor.update_message(
+            "HELP: Ctrl-F = find | Ctrl-S = save | Ctrl-Q = quit | Ctrl-E = explorer",
+        );
 
         let args: Vec<String> = env::args().collect();
         if let Some(file_name) = args.get(1) {
@@ -143,38 +159,73 @@ impl Editor {
         Ok(editor)
     }
 
-    // ── Event loop ───────────────────────────────────────────────────────────
+    // Event loop
 
     pub fn run(&mut self) {
         loop {
+            // 1. Apply plugin responses from last cycle
+            let responses = self.plugin_runtime.drain_responses();
+            for response in responses {
+                self.apply_plugin_response(response);
+            }
+
+            // 2. Inject pending custom events from plugins
+            let pending = std::mem::take(&mut self.pending_events);
+            for event in pending {
+                self.handle_event(event);
+            }
+
+            // 3. Render
             self.refresh_screen();
             if self.should_quit {
                 break;
             }
+
+            // 4. Wait for next input event
             match Terminal::wait_for_event() {
                 Ok(event) => {
-                    if let Ok(command) = command::Command::try_from(event) {
-                        if let command::Command::System(command::System::Resize(size)) = command {
-                            self.handle_resize_command(size);
-                        }
-                        // Take handler out so we can mutably borrow the rest of self
-                        let mut handler = std::mem::take(&mut self.command_handler);
-                        let mut ctx = self.make_context();
-                        let _ = handler.dispatch(&command, &mut ctx);
-                        self.command_handler = handler;
-                    }
+                    // Clone for plugins before core consumes
+                    let event_for_plugins = event.clone();
+                    self.handle_event(event);
+                    // Fire and forget to plugin runtime
+                    self.plugin_runtime
+                        .send(PluginMessage::Event(event_for_plugins));
                 }
                 Err(err) => {
                     #[cfg(debug_assertions)]
-                    {
-                        panic!("Could not read event: {err:?}");
-                    }
+                    panic!("Could not read event: {err:?}");
                 }
             }
+
             self.refresh_status();
         }
     }
-    #[warn(mismatched_lifetime_syntaxes)]
+
+    /// Handle one EditorEvent through the core dispatcher.
+    fn handle_event(&mut self, event: EditorEvent) {
+        if let Ok(command) = command::Command::try_from(event) {
+            // Resize needs to update UI bars too, not just layout
+            if let command::Command::System(command::System::Resize(size)) = command {
+                self.handle_resize_command(size);
+            }
+
+            let mut handler = std::mem::take(&mut self.command_handler);
+            let mut ctx = self.make_context();
+            let _ = handler.dispatch(&command, &mut ctx);
+
+            // If a buffer changed, notify plugins
+            let buffer_changed = ctx.buffer_changed.take();
+            self.command_handler = handler;
+
+            if let Some(buffer_id) = buffer_changed {
+                if let Some(snapshot) = self.make_buffer_snapshot(buffer_id) {
+                    self.plugin_runtime
+                        .send(PluginMessage::BufferChanged(snapshot));
+                }
+            }
+        }
+    }
+
     fn make_context(&'_ mut self) -> EditorContext<'_> {
         EditorContext {
             prompt_type: &mut self.prompt_type,
@@ -189,6 +240,81 @@ impl Editor {
             dragging_split: &mut self.dragging_split,
             dragging_pane: &mut self.dragging_pane,
             drag_offset: &mut self.drag_offset,
+            buffer_changed: None,
+        }
+    }
+
+    fn make_buffer_snapshot(&self, buffer_id: usize) -> Option<BufferSnapshot> {
+        let buffer = self.buffer_manager.get(buffer_id)?;
+        Some(BufferSnapshot {
+            buffer_id,
+            lines: buffer.lines_as_strings(),
+            file_name: buffer
+                .get_file_info()
+                .get_path()
+                .and_then(|p| p.to_str())
+                .map(|s| s.to_string()),
+            is_dirty: buffer.is_dirty(),
+        })
+    }
+
+    // Apply plugin responses
+
+    fn apply_plugin_response(&mut self, response: PluginResponse) {
+        match response {
+            PluginResponse::OpenFloatingPane {
+                plugin_name: _,
+                content_factory,
+                rect,
+            } => {
+                let content = content_factory();
+                let pane_id = self.pane_manager.create_floating_pane(content, 10);
+                if let Some(pane) = self.pane_manager.get_pane_mut(pane_id) {
+                    pane.resize(rect);
+                }
+            }
+
+            PluginResponse::ClosePane { pane_id } => {
+                let is_floating = self
+                    .pane_manager
+                    .get_pane(pane_id)
+                    .map_or(false, |p| p.is_floating);
+
+                let was_active = self
+                    .pane_manager
+                    .active_pane()
+                    .map(|p| p.pane_id == pane_id)
+                    .unwrap_or(false);
+
+                if is_floating {
+                    self.pane_manager.remove_pane(pane_id);
+                } else if self.layout_tree.remove_node(pane_id).is_ok() {
+                    self.pane_manager.remove_pane(pane_id);
+                    self.handle_resize_command(self.terminal_size);
+                }
+
+                if was_active {
+                    // Re-focus first available tiled pane
+                    if let Some((id, _)) = self.layout_tree.collect_leaf_layouts().first() {
+                        self.pane_manager.set_active_pane(*id);
+                    }
+                }
+            }
+
+            PluginResponse::UpdateMessage(msg) => {
+                self.message_bar.update_message(&msg);
+            }
+
+            PluginResponse::EmitCustomEvent(custom) => {
+                self.pending_events.push(EditorEvent::Custom(custom));
+            }
+
+            PluginResponse::RequestSnapshot { buffer_id } => {
+                if let Some(snapshot) = self.make_buffer_snapshot(buffer_id) {
+                    self.plugin_runtime
+                        .send(PluginMessage::BufferChanged(snapshot));
+                }
+            }
         }
     }
 
@@ -203,12 +329,10 @@ impl Editor {
 
         let _ = Terminal::hide_caret();
 
-        // Top bar
         let _ = self
             .buffer_bar
             .render(&self.buffer_manager, &self.pane_manager);
 
-        // Bottom bar — command bar during prompts, message bar otherwise
         if self.in_prompt() {
             self.command_bar.render();
         } else {
@@ -219,9 +343,8 @@ impl Editor {
             self.status_bar.render();
         }
 
-        // Panes
         if height > 2 {
-            // 1. Tiled panes first (layer 0)
+            // Tiled panes (layer 0)
             for (pane_id, _) in self.layout_tree.collect_leaf_layouts() {
                 if let Some(pane) = self.pane_manager.get_pane_mut(pane_id) {
                     if !pane.is_floating {
@@ -230,10 +353,18 @@ impl Editor {
                 }
             }
 
-            // 2. Floating panes on top (sorted by z-index ascending)
-            let mut floating_panes = self.pane_manager.get_floating_panes_sorted_mut();
-            for pane in floating_panes.iter_mut() {
-                pane.render(&self.buffer_manager);
+            // Floating panes sorted by z-index (layer 10+)
+            let floating_ids: Vec<usize> = self
+                .pane_manager
+                .get_floating_panes_sorted()
+                .iter()
+                .map(|p| p.pane_id)
+                .collect();
+
+            for id in floating_ids {
+                if let Some(pane) = self.pane_manager.get_pane_mut(id) {
+                    pane.render(&self.buffer_manager);
+                }
             }
         }
 
@@ -267,7 +398,7 @@ impl Editor {
             view.get_status(buffer)
         } else {
             DocumentStatus {
-                file_name: "Explorer".to_string(),
+                file_name: "Plugin".to_string(),
                 total_lines: 0,
                 current_line_idx: 0,
                 is_modified: false,
@@ -282,24 +413,17 @@ impl Editor {
         }
     }
 
-    // ── Resize (still on Editor — it owns buffer_bar/status_bar/etc.) ────────
-    //
-    // EditorContext::handle_resize() handles the layout_tree + pane rects.
-    // This method handles the UI bars that only Editor knows about.
-    // Called from Editor::new() and whenever a Resize event needs full handling.
+    // Resize
 
     pub fn handle_resize_command(&mut self, size: Size) {
         self.terminal_size = size;
-
         let Size { height, width } = size;
 
-        // Buffer bar: row 0
         self.buffer_bar.resize(Rect {
             position: Position { row: 0, col: 0 },
             size: Size { height: 1, width },
         });
 
-        // Editor pane area: rows 1..height-2
         let editor_rect = Rect {
             position: Position { row: 1, col: 0 },
             size: Size {
@@ -310,7 +434,6 @@ impl Editor {
         self.layout_tree.compute_layout(editor_rect);
         self.sync_pane_rects();
 
-        // Clamp floating panes to screen
         for pane in self.pane_manager.iter_mut() {
             if pane.is_floating {
                 let mut rect = pane.component().rect();
@@ -320,7 +443,6 @@ impl Editor {
             }
         }
 
-        // Status bar: row height-2
         self.status_bar.resize(Rect {
             position: Position {
                 row: height.saturating_sub(2),
@@ -329,7 +451,6 @@ impl Editor {
             size: Size { height: 1, width },
         });
 
-        // Message / command bar: row height-1
         let bottom_rect = Rect {
             position: Position {
                 row: height.saturating_sub(1),
@@ -339,11 +460,10 @@ impl Editor {
         };
         self.message_bar.resize(bottom_rect);
         self.command_bar.resize(bottom_rect);
-
         self.mark_all_panes_for_redraw();
     }
 
-    // helpers that refresh_screen / handle_resize_command still need
+    // Helpers
 
     fn in_prompt(&self) -> bool {
         !self.prompt_type.is_none()
@@ -372,6 +492,7 @@ impl Editor {
 
 impl Drop for Editor {
     fn drop(&mut self) {
+        self.plugin_runtime.shutdown();
         let _ = Terminal::terminate();
         if self.should_quit {
             let _ = Terminal::print("Goodbye.\r\n");
