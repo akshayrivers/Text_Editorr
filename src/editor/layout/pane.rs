@@ -13,9 +13,12 @@ Pane should know:
     - whether it is focused
 */
 use crate::{
-    editor::buffers::BufferManager,
-    editor::uicomponents::{UIComponent, View},
-    editor::Terminal,
+    editor::{
+        buffers::BufferManager,
+        command::Move,
+        uicomponents::{ClickAction, PluginComponent, UIComponent, View},
+        Terminal,
+    },
     prelude::*,
 };
 
@@ -23,9 +26,9 @@ pub enum PaneContent {
     /// A text editing view backed by a Buffer.
     TextView(View),
     /// Any plugin-provided UI component (FileExplorer, CharacterMap, etc.)
-    Plugin(Box<dyn UIComponent + Send>),
+    Plugin(Box<dyn PluginComponent + Send>),
     /// A temporary popup overlay.
-    Popup(Box<dyn UIComponent + Send>),
+    Popup(Box<dyn PluginComponent + Send>),
 }
 
 pub struct Pane {
@@ -68,6 +71,32 @@ impl Pane {
             PaneContent::TextView(v) => v,
             PaneContent::Plugin(c) => c.as_mut(),
             PaneContent::Popup(p) => p.as_mut(),
+        }
+    }
+    // ── Plugin-specific input forwarding ──────────────────────────────────────
+
+    /// Forward an arrow key to a Plugin/Popup pane. No-op for TextView.
+    pub fn plugin_handle_move(&mut self, direction: Move) {
+        match &mut self.content {
+            PaneContent::Plugin(c) | PaneContent::Popup(c) => c.handle_move(direction),
+            PaneContent::TextView(_) => {}
+        }
+    }
+
+    /// Forward Enter/select to a Plugin/Popup pane. No-op for TextView.
+    pub fn plugin_handle_select(&mut self) -> Option<std::path::PathBuf> {
+        match &mut self.content {
+            PaneContent::Plugin(c) | PaneContent::Popup(c) => c.handle_select(),
+            PaneContent::TextView(_) => None,
+        }
+    }
+
+    /// Forward a mouse click to a Plugin/Popup pane.
+    /// Returns ClickAction so the caller knows what to do next.
+    pub fn plugin_handle_click(&mut self, position: Position) -> ClickAction {
+        match &mut self.content {
+            PaneContent::Plugin(c) | PaneContent::Popup(c) => c.handle_click(position),
+            PaneContent::TextView(_) => ClickAction::None,
         }
     }
 

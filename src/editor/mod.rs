@@ -33,7 +33,7 @@ use plugins::{
     builtin::FileExplorerPlugin, BufferSnapshot, PluginMessage, PluginResponse, PluginRuntime,
 };
 use terminal::Terminal;
-use uicomponents::{BufferBar, CommandBar, MessageBar, StatusBar, UIComponent, View};
+use uicomponents::{BufferBar, ClickAction, CommandBar, MessageBar, StatusBar, UIComponent, View};
 
 mod command_dispatcher;
 use command_dispatcher::{EditorContext, HandlerRegistry, PromptType};
@@ -315,6 +315,61 @@ impl Editor {
                         .send(PluginMessage::BufferChanged(snapshot));
                 }
             }
+            PluginResponse::ToggleMinimize { pane_id } => {
+                if let Some(pane) = self.pane_manager.get_pane_mut(pane_id) {
+                    pane.is_minimized = !pane.is_minimized;
+                }
+            }
+            PluginResponse::MoveInPane { pane_id, direction } => {
+                if let Some(pane) = self.pane_manager.get_pane_mut(pane_id) {
+                    pane.plugin_handle_move(direction);
+                }
+            }
+            PluginResponse::SelectInPane { pane_id } => {
+                let file_to_open = if let Some(pane) = self.pane_manager.get_pane_mut(pane_id) {
+                    pane.plugin_handle_select()
+                } else {
+                    None
+                };
+
+                if let Some(path) = file_to_open {
+                    self.apply_plugin_response(PluginResponse::ClosePane { pane_id });
+                    if let Some(file_name) = path.to_str() {
+                        match Buffer::load(file_name) {
+                            Ok(buffer) => {
+                                let buffer_id = self.buffer_manager.add(buffer);
+                                if let Some(view) = self
+                                    .pane_manager
+                                    .active_pane_mut()
+                                    .and_then(|p| p.view_mut())
+                                {
+                                    view.set_buffer_id(buffer_id);
+                                }
+                            }
+                            Err(_) => {
+                                self.update_message(&format!("ERR: Could not open file: {}", file_name));
+                            }
+                        }
+                    }
+                }
+            }
+            PluginResponse::MouseClickInPane { pane_id, position } => {
+                let action = if let Some(pane) = self.pane_manager.get_pane_mut(pane_id) {
+                    pane.plugin_handle_click(position)
+                } else {
+                    ClickAction::None
+                };
+
+                match action {
+                    ClickAction::Close => {
+                        self.apply_plugin_response(PluginResponse::ClosePane { pane_id });
+                    }
+                    ClickAction::Minimize => {
+                        self.apply_plugin_response(PluginResponse::ToggleMinimize { pane_id });
+                    }
+                    ClickAction::None => {}
+                }
+            }
         }
     }
 
@@ -463,7 +518,7 @@ impl Editor {
         self.mark_all_panes_for_redraw();
     }
 
-    // Helpers
+    //Helpers
 
     fn in_prompt(&self) -> bool {
         !self.prompt_type.is_none()

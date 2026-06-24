@@ -1,9 +1,17 @@
+// src/editor/plugins/mod.rs
+//
+// Additions needed to support FileExplorerPlugin properly:
+//   1. PluginResponse gains MoveInPane, SelectInPane, MouseClickInPane
+//   2. PluginMessage gains PaneOpened
+//   3. Plugin trait gains on_pane_opened
+
 pub mod builtin;
 pub mod runtime;
-
 pub use runtime::PluginRuntime;
 
+use crate::editor::command::Move;
 use crate::editor::events::EditorEvent;
+use crate::editor::uicomponents::UIComponent;
 use crate::{editor, prelude::*};
 use async_trait::async_trait;
 
@@ -15,38 +23,48 @@ pub struct BufferSnapshot {
     pub is_dirty: bool,
 }
 
-// PluginMessage
+// ─── PluginMessage ───────────────────────────────────────────────────────────
 
-// NOTE: Box<dyn Plugin> is Send + Sync so this is safe to send across threads.
-// We can't derive Clone/Debug because Box<dyn Plugin> doesn't impl them,
-// so we don't derive — the channel doesn't need it.
 pub enum PluginMessage {
-    /// Load a new plugin into the runtime.
     LoadPlugin(Box<dyn Plugin>),
-    /// A raw EditorEvent cloned after core has handled it.
     Event(EditorEvent),
-    /// A buffer was modified — here is a snapshot.
     BufferChanged(BufferSnapshot),
-    /// Shut down the runtime.
+    /// Core tells a plugin that a pane it requested was opened.
+    PaneOpened {
+        plugin_name: String,
+        pane_id: usize,
+    },
     Shutdown,
 }
 
-// PluginResponse
+// ─── PluginResponse ──────────────────────────────────────────────────────────
 
 pub enum PluginResponse {
+    /// Open a floating pane — core assigns pane_id and sends PaneOpened back.
     OpenFloatingPane {
         plugin_name: String,
         content_factory: Box<dyn FnOnce() -> crate::editor::layout::PaneContent + Send>,
         rect: Rect,
     },
-    ClosePane {
+    /// Close a pane by id.
+    ClosePane { pane_id: usize },
+    /// Minimize/restore a floating pane.
+    ToggleMinimize { pane_id: usize },
+    /// Move selection in a Plugin pane (e.g. FileExplorer arrow keys).
+    MoveInPane {
         pane_id: usize,
+        direction: crate::editor::command::Move,
     },
+    /// Trigger selection/enter in a Plugin pane.
+    SelectInPane { pane_id: usize },
+    /// Forward a mouse click position to a Plugin pane.
+    MouseClickInPane { pane_id: usize, position: Position },
+    /// Show a message in the message bar.
     UpdateMessage(String),
+    /// Inject a custom event back into the next event cycle.
     EmitCustomEvent(editor::events::customevent::CustomEvent),
-    RequestSnapshot {
-        buffer_id: usize,
-    },
+    /// Ask the core for a fresh buffer snapshot.
+    RequestSnapshot { buffer_id: usize },
 }
 
 impl std::fmt::Debug for PluginResponse {
@@ -54,10 +72,14 @@ impl std::fmt::Debug for PluginResponse {
         match self {
             Self::OpenFloatingPane {
                 plugin_name, rect, ..
-            } => {
-                write!(f, "OpenFloatingPane({plugin_name}, {rect:?})")
-            }
+            } => write!(f, "OpenFloatingPane({plugin_name}, {rect:?})"),
             Self::ClosePane { pane_id } => write!(f, "ClosePane({pane_id})"),
+            Self::ToggleMinimize { pane_id } => write!(f, "ToggleMinimize({pane_id})"),
+            Self::MoveInPane { pane_id, .. } => write!(f, "MoveInPane({pane_id})"),
+            Self::SelectInPane { pane_id } => write!(f, "SelectInPane({pane_id})"),
+            Self::MouseClickInPane { pane_id, position } => {
+                write!(f, "MouseClickInPane({pane_id}, {position:?})")
+            }
             Self::UpdateMessage(m) => write!(f, "UpdateMessage({m})"),
             Self::EmitCustomEvent(_) => write!(f, "EmitCustomEvent"),
             Self::RequestSnapshot { buffer_id } => write!(f, "RequestSnapshot({buffer_id})"),
@@ -65,7 +87,7 @@ impl std::fmt::Debug for PluginResponse {
     }
 }
 
-// Plugin trait
+// ─── Plugin trait ─────────────────────────────────────────────────────────────
 
 #[async_trait]
 pub trait Plugin: Send + Sync {
@@ -74,11 +96,17 @@ pub trait Plugin: Send + Sync {
     async fn on_load(&mut self) {}
     async fn on_unload(&mut self) {}
 
+    /// Called for every EditorEvent after the core has handled it.
     async fn on_event(&mut self, _event: &EditorEvent) -> Option<PluginResponse> {
         None
     }
 
+    /// Called whenever a buffer changes.
     async fn on_buffer_change(&mut self, _snapshot: BufferSnapshot) -> Option<PluginResponse> {
         None
     }
+
+    /// Called when a pane this plugin requested has been opened.
+    /// The plugin should store pane_id for future close/move calls.
+    async fn on_pane_opened(&mut self, _pane_id: usize) {}
 }
