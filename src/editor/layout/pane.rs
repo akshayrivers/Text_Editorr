@@ -73,7 +73,22 @@ impl Pane {
             PaneContent::Popup(p) => p.as_mut(),
         }
     }
-    // ── Plugin-specific input forwarding ──────────────────────────────────────
+
+    /// Propagate active state to the underlying view or plugin component.
+    pub fn set_content_active(&mut self, active: bool) {
+        match &mut self.content {
+            PaneContent::TextView(view) => {
+                view.set_active(active);
+            }
+            PaneContent::Plugin(component) => {
+                component.set_active(active);
+            }
+            PaneContent::Popup(popup) => {
+                popup.set_active(active);
+            }
+        }
+    }
+    // Plugin-specific input forwarding
 
     /// Forward an arrow key to a Plugin/Popup pane. No-op for TextView.
     pub fn plugin_handle_move(&mut self, direction: Move) {
@@ -105,7 +120,7 @@ impl Pane {
     }
 
     pub fn min_button_col(&self) -> usize {
-        self.rect.position.col + self.rect.size.width.saturating_sub(8)
+        self.rect.position.col + self.rect.size.width.saturating_sub(7)
     }
 
     pub fn is_on_close_button(&self, pos: Position) -> bool {
@@ -133,6 +148,54 @@ impl Pane {
 
     pub fn render(&mut self, buffer_manager: &BufferManager) {
         let rect = self.rect;
+        let min_button_col = self.min_button_col();
+
+        if self.is_minimized {
+            let title = match &self.content {
+                PaneContent::TextView(_) => {
+                    if self.active {
+                        format!("─ [{}]* ", self.pane_id)
+                    } else {
+                        format!("─ [{}]  ", self.pane_id)
+                    }
+                }
+                PaneContent::Plugin(_) | PaneContent::Popup(_) => {
+                    if self.active {
+                        format!("─ [Plugin {}]* ", self.pane_id)
+                    } else {
+                        format!("─ [Plugin {}]  ", self.pane_id)
+                    }
+                }
+            };
+
+            let width = rect.size.width;
+            if width >= 2 {
+                let button_str = "[-][x]";
+                let button_len = button_str.len();
+                let title_part = format!("┌{}", title);
+                let fill_len = width
+                    .saturating_sub(title_part.len())
+                    .saturating_sub(button_len)
+                    .saturating_sub(1); // corner ┐
+                let fill = "─".repeat(fill_len);
+                let top_line = format!("{}{}{}┐", title_part, fill, button_str);
+                let _ = Terminal::print_at(rect.position, &top_line);
+            }
+
+            // Clear rows below the title bar
+            for r in rect.position.row.saturating_add(1)
+                ..rect.position.row.saturating_add(rect.size.height)
+            {
+                let _ = Terminal::print_at(
+                    Position {
+                        row: r,
+                        col: rect.position.col,
+                    },
+                    &" ".repeat(width),
+                );
+            }
+            return;
+        }
 
         match &mut self.content {
             PaneContent::TextView(view) => {
@@ -162,6 +225,17 @@ impl Pane {
                     },
                     &title,
                 );
+
+                // Render minimize and close buttons on the top border
+                if rect.size.width >= 10 {
+                    let _ = Terminal::print_at(
+                        Position {
+                            row: rect.position.row,
+                            col: min_button_col,
+                        },
+                        "[-][x]",
+                    );
+                }
 
                 // Content rect is inset by 1 on all sides (inside the border)
                 let content_rect = Rect {

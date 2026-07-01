@@ -187,9 +187,13 @@ impl Editor {
                     // Clone for plugins before core consumes
                     let event_for_plugins = event.clone();
                     self.handle_event(event);
+                    let active_pane_id = self.pane_manager.active_pane().map(|p| p.pane_id).unwrap_or(0);
                     // Fire and forget to plugin runtime
                     self.plugin_runtime
-                        .send(PluginMessage::Event(event_for_plugins));
+                        .send(PluginMessage::Event {
+                            event: event_for_plugins,
+                            active_pane_id,
+                        });
                 }
                 Err(err) => {
                     #[cfg(debug_assertions)]
@@ -232,6 +236,7 @@ impl Editor {
             pane_manager: &mut self.pane_manager,
             layout_tree: &mut self.layout_tree,
             buffer_manager: &mut self.buffer_manager,
+            buffer_bar: &mut self.buffer_bar,
             command_bar: &mut self.command_bar,
             message_bar: &mut self.message_bar,
             terminal_size: self.terminal_size,
@@ -263,7 +268,7 @@ impl Editor {
     fn apply_plugin_response(&mut self, response: PluginResponse) {
         match response {
             PluginResponse::OpenFloatingPane {
-                plugin_name: _,
+                plugin_name,
                 content_factory,
                 rect,
             } => {
@@ -272,6 +277,10 @@ impl Editor {
                 if let Some(pane) = self.pane_manager.get_pane_mut(pane_id) {
                     pane.resize(rect);
                 }
+                self.plugin_runtime.send(PluginMessage::PaneOpened {
+                    plugin_name,
+                    pane_id,
+                });
             }
 
             PluginResponse::ClosePane { pane_id } => {

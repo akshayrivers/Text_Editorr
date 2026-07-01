@@ -1,5 +1,3 @@
-// src/editor/plugins/mod.rs
-//
 // Additions needed to support FileExplorerPlugin properly:
 //   1. PluginResponse gains MoveInPane, SelectInPane, MouseClickInPane
 //   2. PluginMessage gains PaneOpened
@@ -23,11 +21,14 @@ pub struct BufferSnapshot {
     pub is_dirty: bool,
 }
 
-// ─── PluginMessage ───────────────────────────────────────────────────────────
+// PluginMessage
 
 pub enum PluginMessage {
     LoadPlugin(Box<dyn Plugin>),
-    Event(EditorEvent),
+    Event {
+        event: EditorEvent,
+        active_pane_id: usize,
+    },
     BufferChanged(BufferSnapshot),
     /// Core tells a plugin that a pane it requested was opened.
     PaneOpened {
@@ -37,7 +38,7 @@ pub enum PluginMessage {
     Shutdown,
 }
 
-// ─── PluginResponse ──────────────────────────────────────────────────────────
+// PluginResponse
 
 pub enum PluginResponse {
     /// Open a floating pane — core assigns pane_id and sends PaneOpened back.
@@ -87,7 +88,7 @@ impl std::fmt::Debug for PluginResponse {
     }
 }
 
-// ─── Plugin trait ─────────────────────────────────────────────────────────────
+// Plugin trait
 
 #[async_trait]
 pub trait Plugin: Send + Sync {
@@ -97,7 +98,11 @@ pub trait Plugin: Send + Sync {
     async fn on_unload(&mut self) {}
 
     /// Called for every EditorEvent after the core has handled it.
-    async fn on_event(&mut self, _event: &EditorEvent) -> Option<PluginResponse> {
+    async fn on_event(
+        &mut self,
+        _event: &EditorEvent,
+        _active_pane_id: usize,
+    ) -> Option<PluginResponse> {
         None
     }
 

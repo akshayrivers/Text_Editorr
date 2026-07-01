@@ -1,4 +1,3 @@
-// src/editor/plugins/runtime.rs
 use super::{Plugin, PluginMessage, PluginResponse};
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 
@@ -71,9 +70,12 @@ async fn plugin_worker(rx: std::sync::mpsc::Receiver<PluginMessage>, tx: Sender<
                 plugins.push(plugin);
             }
 
-            PluginMessage::Event(event) => {
+            PluginMessage::Event {
+                event,
+                active_pane_id,
+            } => {
                 for plugin in &mut plugins {
-                    if let Some(response) = plugin.on_event(&event).await {
+                    if let Some(response) = plugin.on_event(&event, active_pane_id).await {
                         let _ = tx.send(response);
                     }
                 }

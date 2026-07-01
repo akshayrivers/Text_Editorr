@@ -38,7 +38,7 @@ impl Plugin for FileExplorerPlugin {
         self.open_pane_id = Some(pane_id);
     }
 
-    async fn on_event(&mut self, event: &EditorEvent) -> Option<PluginResponse> {
+    async fn on_event(&mut self, event: &EditorEvent, active_pane_id: usize) -> Option<PluginResponse> {
         match event {
             // ── Ctrl+E — toggle ───────────────────────────────────────────
             EditorEvent::Key(key)
@@ -63,46 +63,49 @@ impl Plugin for FileExplorerPlugin {
                 });
             }
 
-            // ── Keys only meaningful when explorer is open ────────────────
-            EditorEvent::Key(key) if self.open_pane_id.is_some() => {
-                let pane_id = self.open_pane_id.unwrap();
-
-                if key.modifiers == KeyModifiers::NONE {
-                    match key.key_code {
-                        KeyCode::Up => {
-                            return Some(PluginResponse::MoveInPane {
-                                pane_id,
-                                direction: Move::Up,
-                            });
+            // Other events are only processed if the explorer is currently the active pane
+            _ if self.open_pane_id == Some(active_pane_id) => {
+                match event {
+                    EditorEvent::Key(key) => {
+                        let pane_id = self.open_pane_id.unwrap();
+                        if key.modifiers == KeyModifiers::NONE {
+                            match key.key_code {
+                                KeyCode::Up => {
+                                    return Some(PluginResponse::MoveInPane {
+                                        pane_id,
+                                        direction: Move::Up,
+                                    });
+                                }
+                                KeyCode::Down => {
+                                    return Some(PluginResponse::MoveInPane {
+                                        pane_id,
+                                        direction: Move::Down,
+                                    });
+                                }
+                                KeyCode::Enter => {
+                                    return Some(PluginResponse::SelectInPane { pane_id });
+                                }
+                                KeyCode::Esc => {
+                                    self.open_pane_id = None;
+                                    return Some(PluginResponse::ClosePane { pane_id });
+                                }
+                                _ => {}
+                            }
                         }
-                        KeyCode::Down => {
-                            return Some(PluginResponse::MoveInPane {
-                                pane_id,
-                                direction: Move::Down,
-                            });
-                        }
-                        KeyCode::Enter => {
-                            return Some(PluginResponse::SelectInPane { pane_id });
-                        }
-                        KeyCode::Esc => {
-                            self.open_pane_id = None;
-                            return Some(PluginResponse::ClosePane { pane_id });
-                        }
-                        _ => {}
                     }
-                }
-            }
 
-            // ── Mouse clicks forwarded to pane ────────────────────────────
-            EditorEvent::Mouse(mouse)
-                if self.open_pane_id.is_some()
-                    && mouse.action == MouseAction::Down
-                    && mouse.button == Some(MouseButton::Left) =>
-            {
-                return Some(PluginResponse::MouseClickInPane {
-                    pane_id: self.open_pane_id.unwrap(),
-                    position: mouse.position,
-                });
+                    EditorEvent::Mouse(mouse)
+                        if mouse.action == MouseAction::Down
+                            && mouse.button == Some(MouseButton::Left) =>
+                    {
+                        return Some(PluginResponse::MouseClickInPane {
+                            pane_id: self.open_pane_id.unwrap(),
+                            position: mouse.position,
+                        });
+                    }
+
+                    _ => {}
+                }
             }
 
             _ => {}

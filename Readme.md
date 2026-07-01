@@ -1,122 +1,127 @@
-[![Build](https://github.com/akshayrivers/Text_Editorr/actions/workflows/rust.yml/badge.svg)](https://github.com/akshayrivers/Text_Editorr/actions/workflows/rust.yml)
+# 🌲 Yonro Terminal-Based Text Editor
 
-# Yonro's Terminal based text editor
+[![Build Status](https://github.com/akshayrivers/Text_Editorr/actions/workflows/rust.yml/badge.svg)](https://github.com/akshayrivers/Text_Editorr/actions/workflows/rust.yml)
 
-Initially it had been a faithful implementation of the text editor built in the [Hecto tutorial](https://www.flenker.blog/hecto/). But I have enhanced and changed it into something which I can use as a writer and also it is also to challenge myself as a programmer.
-For detailed notes please refer to /notes.md
+Yonro is a highly enhanced, layered, and extensible terminal-based text editor written in Rust. Originally inspired by the [Hecto tutorial](https://www.flenker.blog/hecto/), Yonro has diverged significantly to incorporate a robust **split-pane layout tree**, multi-pane floating windows, an asynchronous **plugin architecture**, an active **File Explorer plugin**, and a robust command dispatcher.
 
-## Demo
 
-### Single Pane
-![demo](./demo.gif)
+## 📸 Demos
 
-### Multi-Pane Support
+### Multi-Pane Splitting & Floating Windows
 ![pane](./pane.gif)
 
-## Overview & Design Philosophy
+### File Editing and Highlighting
+![demo](./demo.gif)
 
-Instead of jumping directly into features, the editor was built in layers:
 
-- Terminal control
-- Rendering
-- Editing
-- Search
-- Highlighting
-- Pane Abstraction
-- Extensibility
 
-Each phase builds on the previous one, gradually evolving the editor from a
-simple terminal viewer into a fully functional text editor.
-
-For more details on the architecture, check out my [Medium blog](INSERT_MEDIUM_BLOG_LINK_HERE).
-
-### Pane Abstraction
-
-The editor now supports a sophisticated pane management system:
-
-- **Layout Tree**: A recursive structure that manages splitting the screen horizontally and vertically.
-- **Pane Manager**: Tracks active panes and handles focus switching.
-- **View Component**: Each pane contains a `View` which is responsible for rendering and editing its own buffer.
-
-This allows for flexible window management, similar to modern editors like Vim or VSCode.
-
-Some guiding principles during development:
-
-- Keep core editor synchronous and stable
-- Prefer simple data structures first
-- Unicode correctness over premature optimization
-- Stateless rendering where possible
-- Design for extensibility (plugins later)
-
-This allowed the editor to evolve organically while keeping complexity manageable.
-
-## Quick Start
+## 🚀 Quick Start
 
 ### Requirements
+*   **Rust** (stable toolchain)
+*   A terminal with **UTF-8** and **grapheme support**
 
-- Rust (stable)
-- Terminal with UTF-8 support
-
-### Run
-
+### Build and Run
 ```bash
+# Clone the repository
 git clone https://github.com/akshayrivers/Text_Editor.git
 cd Text_Editor
+
+# Run the editor
 cargo run
 ```
 
-## Keybindings
 
-| Key        | Action      |
-| ---------- | ----------- |
-| Ctrl-S     | Save file   |
-| Ctrl-Q     | Quit        |
-| Ctrl-F     | Search      |
-| Arrow Keys | Move cursor |
-| Ctrl-Z.    | Undo        |
-| Ctrl-R.    | Redo        |
 
-### Core Components
+## ⌨️ Keybindings & Controls
 
-| Component   | Responsibility                     |
-| ----------- | ---------------------------------- |
-| Editor      | Command dispatch and state         |
-| Buffer      | Text storage and manipulation      |
-| Line        | Grapheme-aware text representation |
-| Highlighter | Syntax + search highlighting       |
-| Renderer    | Terminal drawing                   |
-| Terminal    | Crossterm abstraction              |
+### Core Commands
+*   `Ctrl-S`: Save current file
+*   `Ctrl-Q`: Quit editor (warns if file has unsaved changes, press 3 times to force quit)
+*   `Ctrl-F`: Interactive search within the active buffer (Esc to cancel, Arrows to navigate matches)
+*   `Ctrl-Z`: Undo last editing step (supports word grouping on typing)
+*   `Ctrl-R`: Redo last undone editing step
+*   `Ctrl-E`: Toggle the built-in File Explorer floating pane
+*   `Ctrl-Space`: Open the command bar for pane commands
 
-This separation keeps the core editor logic clean and extensible.
+### File Explorer Navigation
+When the File Explorer pane is active:
+*   `Up` / `Down` arrows: Select directory entry
+*   `Enter`: Open file or traverse directory
+*   `Esc`: Close File Explorer
 
-## How text editors work:
+### Split Resizing
+*   Click and drag on horizontal or vertical dividers between tiled panes to resize them dynamically.
 
-| Feature             | GNU Nano           | Vim                          | Visual Studio Code  | Yonro's Editor                      |
-| ------------------- | ------------------ | ---------------------------- | ------------------- | ----------------------------------- |
-| Type                | Terminal           | Terminal                     | GUI                 | Terminal                            |
-| Architecture        | Simple             | Modal + Complex              | Plugin-driven       | Layered + Extensible                |
-| Learning Curve      | Very Easy          | Hard                         | Easy                | Moderate                            |
-| Editing Model       | Direct editing     | Modal editing                | Direct editing      | Direct editing                      |
-| Buffer Structure    | Line-based         | Advanced internal structures | Rope / Piece Table  | Line-based (future rope planned)    |
-| Rendering           | Full screen redraw | Optimized redraw             | GPU / UI framework  | Incremental terminal rendering      |
-| Unicode Support     | Limited            | Good                         | Excellent           | Unicode + Grapheme aware            |
-| Syntax Highlighting | Basic              | Advanced                     | Very advanced       | Basic → Improving                   |
-| Plugin Support      | Very limited       | Extensive                    | Extremely extensive | Planned architecture                |
-| LSP Support         | No                 | Yes (plugins)                | Built-in            | Planned                             |
-| Multi-pane UI       | No                 | Yes                          | Yes                 | Planned                             |
-| File Explorer       | No                 | Plugin                       | Built-in            | Planned                             |
-| Performance         | Fast               | Very fast                    | Heavy but optimized | Fast                                |
-| Memory Usage        | Very low           | Low                          | High                | Low                                 |
-| Configuration       | Minimal            | Very powerful                | GUI + config        | Planned                             |
-| Philosophy          | Simple editor      | Power user editor            | IDE-like editor     | Learning + architecture exploration |
 
-## License
+## 🏛️ Architecture & Layered Design
 
-This project started as an implementation inspired by the hecto tutorial:
-https://www.flenker.blog/hecto/
+Yonro is built in robust layers, separating terminal rendering from state management and asynchronous operations.
 
-However, the current implementation has diverged significantly and includes
-additional features, architectural changes, and enhancements.
+```mermaid
+graph TD
+    subgraph Synchronous Core Loop
+        Term[crossterm Inputs] -->|Wait For Event| Loop[Editor::run Event Loop]
+        Loop -->|Draw Screen| UI[BufferBar / StatusBar / Panes / CommandBar]
+        Loop -->|Sync Dispatch| Dispatch[HandlerRegistry]
+        Dispatch -->|Modify| State[EditorContext]
+    end
 
-This project is licensed under the MIT License.
-What if i do something here 
+    subgraph Asynchronous Worker
+        Loop -->|MPSC Tx Event| PluginRuntime[Plugin Tokio Runtime]
+        PluginRuntime -->|Process on Background Thread| Plugins[Built-in/Custom Plugins]
+        Plugins -->|MPSC Tx Response| Loop
+    end
+```
+
+### 📦 Core Components
+
+*   **`Editor`**: Integrates layout, buffers, rendering, and coordinates with the asynchronous plugin runtime.
+*   **`LayoutTree`**: A recursive binary tree structure managing horizontal and vertical pane splits.
+*   **`PaneManager`**: Controls both tiled and floating panes, handles pane selection, and tracks pane depth/Z-index.
+*   **`BufferManager` & `Buffer`**: Owns text data, tracks file paths, dirty flags, and performs grapheme-level file reads/writes.
+*   **`View`**: The text-rendering viewport inside a text pane, managing line highlights, local cursors, and scrolling.
+
+
+
+## 🔌 Asynchronous Plugin System
+
+Yonro features a background plugin runtime that runs on an independent Tokio worker thread. This keeps key input latency at virtually `0ms` even if plugins perform expensive disk, LSP, or network operations.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Core as Core Event Loop
+    participant Worker as Background Plugin Thread
+    participant Plug as Plugin (e.g. FileExplorer)
+
+    Core->>Worker: send(PluginMessage::Event { event, active_pane_id })
+    Worker->>Plug: on_event(&event, active_pane_id)
+    Note over Plug: Process action asynchronously
+    Plug->>Worker: Return PluginResponse (e.g. OpenFloatingPane)
+    Worker->>Core: mpsc tx channel
+    Note over Core: Core processes response in next tick
+```
+
+### Message and Response Pipeline
+*   **`PluginMessage`**: Propagates events (`Event { event, active_pane_id }`), buffer updates (`BufferChanged(BufferSnapshot)`), and notifications (`PaneOpened { plugin_name, pane_id }`) to the plugin runtime.
+*   **`PluginResponse`**: Plugins return responses to open floating panes (`OpenFloatingPane`), close panes (`ClosePane`), shift selections (`MoveInPane`), or output logs (`UpdateMessage`).
+
+
+
+## 🛠️ Command Bar & Window Management
+
+Pressing **`Ctrl-Space`** opens the Pane Command Bar. The following commands can be executed:
+
+*   **`focus <id>`** (or just **`<id>`**): Swaps active window focus to the specified pane.
+*   **`close <id>`** (or just **`close`**): Closes the specified (or active) pane.
+*   **`float`**: Un-tiles the active pane and turns it into a floating pane.
+*   **`unfloat`**: Re-tiles a floating pane back into the Layout Tree.
+*   **`explore`**: Spawns a tiled File Explorer pane on the side.
+
+
+
+## 📄 License
+
+Yonro is licensed under the MIT License.
+inspired by hecto: https://www.flenker.blog/hecto/

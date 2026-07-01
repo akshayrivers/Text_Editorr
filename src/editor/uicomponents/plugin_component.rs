@@ -32,4 +32,7 @@ pub trait PluginComponent: UIComponent + Send {
 
     /// Mouse click at `position` — returns what the click resolved to.
     fn handle_click(&mut self, position: Position) -> ClickAction;
+
+    /// Set whether this component is active/focused.
+    fn set_active(&mut self, active: bool);
 }

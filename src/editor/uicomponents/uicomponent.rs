@@ -1,7 +1,4 @@
-use crate::{
-    editor::{command::Move, uicomponents::ClickAction},
-    prelude::*,
-};
+use crate::prelude::*;
 use std::io::Error;
 
 // IMP NOTE : needs to do render in the basis of rect now, not RowIdx or hmmm will need to make another clean renderer

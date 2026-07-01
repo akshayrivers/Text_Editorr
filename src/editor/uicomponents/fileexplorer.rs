@@ -7,7 +7,7 @@ use std::fs;
 use std::io::Error;
 use std::path::PathBuf;
 
-// ─── Action ──────────────────────────────────────────────────────────────────
+// Action
 // Returned by perform_selection() so the plugin can act on it.
 
 pub enum FileExplorerAction {
@@ -16,7 +16,7 @@ pub enum FileExplorerAction {
     None,
 }
 
-// ─── FileExplorer ─────────────────────────────────────────────────────────────
+// FileExplorer
 
 pub struct FileExplorer {
     current_dir: PathBuf,
@@ -51,7 +51,7 @@ impl Default for FileExplorer {
 }
 
 impl FileExplorer {
-    // ── Public API ───────────────────────────────────────────────────────────
+    // Public API
 
     pub fn current_dir(&self) -> &PathBuf {
         &self.current_dir
@@ -140,8 +140,6 @@ impl FileExplorer {
         }
     }
 
-    // ── Private helpers ──────────────────────────────────────────────────────
-
     fn adjust_scroll(&mut self) {
         // Content area height = rect height - 3 (border top + title + border bottom)
         let content_height = self.rect.size.height.saturating_sub(3);
@@ -171,7 +169,7 @@ impl FileExplorer {
             return Ok(());
         }
 
-        // ── Top border with title ─────────────────────────────────────────
+        // Top border with title
         // Format: ┌─ 📁 /path/to/dir ─── [-][x]┐
         let dir_str = self.current_dir.to_str().unwrap_or("?").to_string();
 
@@ -202,7 +200,7 @@ impl FileExplorer {
 
         Terminal::print_at(Position { row, col }, &top_line)?;
 
-        // ── Side borders ──────────────────────────────────────────────────
+        // Side borders
         for r in row.saturating_add(1)..row.saturating_add(height).saturating_sub(1) {
             Terminal::print_at(Position { row: r, col }, "│")?;
             Terminal::print_at(
@@ -214,7 +212,7 @@ impl FileExplorer {
             )?;
         }
 
-        // ── Bottom border ─────────────────────────────────────────────────
+        // Bottom border
         let bottom_line = format!("└{}┘", "─".repeat(width.saturating_sub(2)));
         Terminal::print_at(
             Position {
@@ -294,12 +292,12 @@ impl FileExplorer {
 
     /// Returns the column of the minimize [-] button on the title bar row.
     pub fn min_button_col(&self) -> usize {
-        // "[-]" sits just before "[x]": col + width - 8 to col + width - 6
+        // "[-]" sits just before "[x]": col + width - 7 to col + width - 5
         self.rect
             .position
             .col
             .saturating_add(self.rect.size.width)
-            .saturating_sub(8)
+            .saturating_sub(7)
     }
 
     pub fn title_bar_row(&self) -> usize {
@@ -325,7 +323,7 @@ impl FileExplorer {
     }
 }
 
-// ─── UIComponent ─────────────────────────────────────────────────────────────
+// UIComponent
 
 impl UIComponent for FileExplorer {
     fn mark_redraw(&mut self, value: bool) {
@@ -382,8 +380,12 @@ impl PluginComponent for FileExplorer {
             // Check if inside content area
             let content_row_start = self.rect.position.row.saturating_add(1);
             let content_height = self.rect.size.height.saturating_sub(2);
-            if position.row >= content_row_start && position.row < content_row_start.saturating_add(content_height) {
-                let click_idx = self.scroll_top.saturating_add(position.row.saturating_sub(content_row_start));
+            if position.row >= content_row_start
+                && position.row < content_row_start.saturating_add(content_height)
+            {
+                let click_idx = self
+                    .scroll_top
+                    .saturating_add(position.row.saturating_sub(content_row_start));
                 if click_idx < self.entries.len() {
                     let prev = self.selected_idx;
                     self.selected_idx = click_idx;
@@ -395,5 +397,11 @@ impl PluginComponent for FileExplorer {
             ClickAction::None
         }
     }
-}
 
+    fn set_active(&mut self, active: bool) {
+        if self.active != active {
+            self.active = active;
+            self.needs_redraw = true;
+        }
+    }
+}

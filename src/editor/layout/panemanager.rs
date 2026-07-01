@@ -10,8 +10,9 @@ pub struct PaneManager {
 }
 
 impl PaneManager {
-    pub fn new(initial_pane: Pane) -> Self {
+    pub fn new(mut initial_pane: Pane) -> Self {
         let initial_pane_id = initial_pane.pane_id;
+        initial_pane.set_content_active(true);
 
         let mut panes = HashMap::new();
         panes.insert(initial_pane_id, initial_pane);
@@ -81,10 +82,12 @@ impl PaneManager {
         }
         if let Some(current_active) = self.panes.get_mut(&self.active_pane) {
             current_active.active = false;
+            current_active.set_content_active(false);
         }
 
         if let Some(new_active) = self.panes.get_mut(&pane_id) {
             new_active.active = true;
+            new_active.set_content_active(true);
         }
 
         self.active_pane = pane_id;

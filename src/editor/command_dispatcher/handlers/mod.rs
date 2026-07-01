@@ -277,6 +277,14 @@ fn execute_pane_command(input: &str, ctx: &mut EditorContext) {
                 }
             }
         }
+        [id_str] if id_str.parse::<usize>().is_ok() => {
+            let id = id_str.parse::<usize>().unwrap();
+            if ctx.pane_manager.get_pane(id).is_some() {
+                ctx.pane_manager.set_active_pane(id);
+            } else {
+                ctx.update_message(&format!("Pane {} not found", id));
+            }
+        }
         ["close", id_str] => {
             if let Ok(id) = id_str.parse::<usize>() {
                 close_pane(id, ctx);
@@ -298,6 +306,6 @@ fn execute_pane_command(input: &str, ctx: &mut EditorContext) {
             }
         }
         ["explore"] => open_file_explorer(ctx),
-        _ => ctx.update_message("Commands: focus <id>, close [<id>], float, unfloat, explore"),
+        _ => ctx.update_message("Commands: focus <id> (or just <id>), close [<id>], float, unfloat, explore"),
     }
 }

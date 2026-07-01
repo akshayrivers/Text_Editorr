@@ -1,7 +1,7 @@
 use crate::editor::{
     buffers::BufferManager,
     layout::{LayoutTree, PaneManager},
-    uicomponents::{CommandBar, MessageBar, UIComponent},
+    uicomponents::{BufferBar, CommandBar, MessageBar, UIComponent},
 };
 use crate::prelude::*;
 
@@ -12,6 +12,7 @@ pub struct EditorContext<'a> {
     pub pane_manager: &'a mut PaneManager,
     pub layout_tree: &'a mut LayoutTree,
     pub buffer_manager: &'a mut BufferManager,
+    pub buffer_bar: &'a mut BufferBar,
     pub command_bar: &'a mut CommandBar,
     pub message_bar: &'a mut MessageBar,
     pub terminal_size: Size,
@@ -70,7 +71,7 @@ impl<'a> EditorContext<'a> {
             }
             PromptType::FocusPane => self
                 .command_bar
-                .set_prompt("focus [Pane ID] to focus on that pane"),
+                .set_prompt("Pane command (focus <id>, close <id>, float, unfloat, explore): "),
             PromptType::ClosePane => self
                 .command_bar
                 .set_prompt("close [Pane ID] to close that pane"),
