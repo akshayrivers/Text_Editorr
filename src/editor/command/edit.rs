@@ -2,7 +2,7 @@ use crossterm::event::{
     KeyCode::{Backspace, Char, Delete, Enter, Tab},
     KeyEvent, KeyModifiers,
 };
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum Edit {
     Insert(char),
     InsertNewLine,

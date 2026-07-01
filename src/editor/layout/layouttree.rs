@@ -391,26 +391,32 @@ impl LayoutTree {
                 if *id == split_id {
                     match direction {
                         SplitDirection::Vertical => {
-                            let local_col = mouse.col.saturating_sub(rect.position.col);
-                            let new_ratio =
-                                (local_col as f32 / rect.size.width as f32).clamp(0.05, 0.95);
+                            let min_width = MIN_PANE_SIZE;
+                            let max_width = rect.size.width.saturating_sub(MIN_PANE_SIZE);
+                            if max_width >= min_width && rect.size.width > 0 {
+                                let local_col = mouse.col.saturating_sub(rect.position.col).clamp(min_width, max_width);
+                                let new_ratio = local_col as f32 / rect.size.width as f32;
 
-                            #[cfg(debug_assertions)]
-                            println!("Resize: mouse.col={}, rect.pos.col={}, local_col={}, rect.width={}, old_ratio={}, new_ratio={}", 
-                            mouse.col, rect.position.col, local_col, rect.size.width, ratio, new_ratio);
+                                #[cfg(debug_assertions)]
+                                println!("Resize: mouse.col={}, rect.pos.col={}, local_col={}, rect.width={}, old_ratio={}, new_ratio={}", 
+                                mouse.col, rect.position.col, local_col, rect.size.width, ratio, new_ratio);
 
-                            *ratio = new_ratio;
+                                *ratio = new_ratio;
+                            }
                         }
                         SplitDirection::Horizontal => {
-                            let local_row = mouse.row.saturating_sub(rect.position.row);
-                            let new_ratio =
-                                (local_row as f32 / rect.size.height as f32).clamp(0.05, 0.95);
+                            let min_height = MIN_PANE_SIZE;
+                            let max_height = rect.size.height.saturating_sub(MIN_PANE_SIZE);
+                            if max_height >= min_height && rect.size.height > 0 {
+                                let local_row = mouse.row.saturating_sub(rect.position.row).clamp(min_height, max_height);
+                                let new_ratio = local_row as f32 / rect.size.height as f32;
 
-                            #[cfg(debug_assertions)]
-                            println!("Resize: mouse.row={}, rect.pos.row={}, local_row={}, rect.height={}, old_ratio={}, new_ratio={}", 
-                            mouse.row, rect.position.row, local_row, rect.size.height, ratio, new_ratio);
+                                #[cfg(debug_assertions)]
+                                println!("Resize: mouse.row={}, rect.pos.row={}, local_row={}, rect.height={}, old_ratio={}, new_ratio={}", 
+                                mouse.row, rect.position.row, local_row, rect.size.height, ratio, new_ratio);
 
-                            *ratio = new_ratio;
+                                *ratio = new_ratio;
+                            }
                         }
                     }
                 } else {

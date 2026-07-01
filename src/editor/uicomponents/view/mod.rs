@@ -83,6 +83,9 @@ impl View {
     }
     pub fn set_buffer_id(&mut self, id: usize) {
         self.buffer_id = id;
+        self.text_location = Location::default();
+        self.scroll_offset = Position::default();
+        self.mark_redraw(true);
     }
     pub fn set_active(&mut self, active: bool) {
         if self.is_active != active {

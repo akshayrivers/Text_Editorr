@@ -10,7 +10,7 @@ mod mouse;
 use crate::prelude::*;
 pub use mouse::MouseCommand;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum Command {
     Move(Move),
     Edit(Edit),
