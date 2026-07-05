@@ -1,4 +1,5 @@
 use crate::editor::layout::{Pane, PaneContent};
+use crate::editor::uicomponents::UIComponent;
 use crate::prelude::Rect;
 use std::collections::HashMap;
 
@@ -33,7 +34,7 @@ impl PaneManager {
             content,
             active: false,
             is_floating: false,
-            z_index: 0,
+            z_index: 1, // at 0 there will be tiles
             is_minimized: false,
             rect: Rect::default(),
         };
@@ -119,24 +120,29 @@ impl PaneManager {
     }
 
     pub fn bring_to_front(&mut self, pane_id: usize) {
-        if let Some(pane) = self.panes.get(&pane_id) {
-            if !pane.is_floating {
-                return;
-            }
-        } else {
+        if !self.panes.get(&pane_id).map_or(false, |p| p.is_floating) {
             return;
         }
 
-        let max_z = self
+        let Some(top_id) = self
             .panes
             .values()
             .filter(|p| p.is_floating)
-            .map(|p| p.z_index)
-            .max()
-            .unwrap_or(0);
+            .max_by_key(|p| p.z_index)
+            .map(|p| p.pane_id)
+        else {
+            return;
+        };
 
-        if let Some(pane) = self.panes.get_mut(&pane_id) {
-            pane.z_index = max_z + 1;
+        let top_z = self.panes[&top_id].z_index;
+        let target_z = self.panes[&pane_id].z_index;
+
+        if top_z == target_z {
+            // tie — swap would be a no-op, so bump instead
+            self.panes.get_mut(&pane_id).unwrap().z_index = top_z + 1;
+        } else {
+            self.panes.get_mut(&top_id).unwrap().z_index = target_z;
+            self.panes.get_mut(&pane_id).unwrap().z_index = top_z;
         }
     }
 }
