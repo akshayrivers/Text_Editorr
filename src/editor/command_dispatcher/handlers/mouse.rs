@@ -29,21 +29,31 @@ impl CommandHandler for MouseHandler {
 fn handle_left_click(position: Position, ctx: &mut EditorContext) {
     // 0. Check if user clicked on the top bar (BufferBar)
     if position.row == 0 {
-        let clicked_tab = ctx.buffer_bar.tab_hitboxes.iter().find(|&&(_, start, end)| {
-            position.col >= start && position.col < end
-        }).map(|&(id, _, _)| id);
+        let clicked_tab = ctx
+            .buffer_bar
+            .tab_hitboxes
+            .iter()
+            .find(|&&(_, start, end)| position.col >= start && position.col < end)
+            .map(|&(id, _, _)| id);
 
         if let Some(buf_id) = clicked_tab {
-            if let Some(view) = ctx.pane_manager.active_pane_mut().and_then(|p| p.view_mut()) {
+            if let Some(view) = ctx
+                .pane_manager
+                .active_pane_mut()
+                .and_then(|p| p.view_mut())
+            {
                 view.set_buffer_id(buf_id);
                 ctx.mark_all_panes_for_redraw();
             }
             return;
         }
 
-        let clicked_min = ctx.buffer_bar.minimized_hitboxes.iter().find(|&&(_, start, end)| {
-            position.col >= start && position.col < end
-        }).map(|&(id, _, _)| id);
+        let clicked_min = ctx
+            .buffer_bar
+            .minimized_hitboxes
+            .iter()
+            .find(|&&(_, start, end)| position.col >= start && position.col < end)
+            .map(|&(id, _, _)| id);
 
         if let Some(pane_id) = clicked_min {
             if let Some(pane) = ctx.pane_manager.get_pane_mut(pane_id) {
@@ -298,7 +308,6 @@ pub fn toggle_floating(id: usize, ctx: &mut EditorContext) {
         pane.resize(rect);
     }
 
-    // bring_to_front instead of hardcoded z_index = 10 (fixes the bug)
     ctx.pane_manager.bring_to_front(id);
 
     let size = ctx.terminal_size;
