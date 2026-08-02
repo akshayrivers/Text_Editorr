@@ -3,7 +3,7 @@ use crossterm::event::{
     KeyEvent, KeyModifiers,
 };
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum Move {
     PageUp,
     PageDown,

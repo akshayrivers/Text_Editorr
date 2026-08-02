@@ -1,7 +1,7 @@
-use super::super::super::AnnotatedString;
-use super::FileInfo;
-use super::Highlighter;
-use super::Line;
+use crate::editor::annotatedstring::AnnotatedString;
+use crate::editor::line::Line;
+use crate::editor::uicomponents::view::fileinfo::FileInfo;
+use crate::editor::uicomponents::view::highlighter::Highlighter;
 use crate::prelude::*;
 use std::io::Write;
 use std::ops::Range;
@@ -28,7 +28,9 @@ impl Buffer {
             .get(idx)
             .map_or(0, |line| line.width_until(until))
     }
-
+    pub fn lines_as_strings(&self) -> Vec<String> {
+        self.lines.iter().map(|l| l.to_string()).collect()
+    }
     pub fn get_highlighted_substring(
         &self,
         line_idx: LineIdx,
