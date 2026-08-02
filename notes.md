@@ -1224,7 +1224,7 @@ I have also written extensive unit tests to check this functionality:
 ---
 
 ## Phase VII: Plugin System
-
+Need UI for plugin management and register and unresgister at runtime, also supports for scripts for plugins
 ---
 
 ## Future Plans
