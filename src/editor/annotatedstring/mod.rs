@@ -9,7 +9,7 @@ use annotatedstringpart::AnnotatedStringPart;
 mod annotatedstringiterator;
 use annotatedstringiterator::AnnotatedStringIterator;
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct AnnotatedString {
     string: String,
     annotations: Vec<Annotation>,

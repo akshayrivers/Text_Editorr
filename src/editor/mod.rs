@@ -6,37 +6,45 @@ use std::{
     panic::{set_hook, take_hook},
 };
 
-mod annotatedstring;
+pub mod annotatedstring;
+pub mod annotation;
 pub mod annotationtype;
-mod buffers;
-mod command;
-mod documentstatus;
+pub mod buffers;
+pub mod command;
+pub mod command_dispatcher;
+pub mod documentstatus;
 pub mod events;
-mod line;
-mod plugins;
-mod terminal;
-mod uicomponents;
+pub mod filetype;
+pub mod layout;
+pub mod line;
+pub mod plugins;
+pub mod terminal;
+pub mod uicomponents;
 
+pub use annotatedstring::AnnotatedString;
+pub use annotation::Annotation;
 pub use annotationtype::AnnotationType;
-mod annotation;
-use annotatedstring::AnnotatedString;
-use annotation::Annotation;
-use buffers::{Buffer, BufferManager};
-use documentstatus::DocumentStatus;
-use events::EditorEvent;
-use line::Line;
-mod filetype;
-use filetype::FileType;
-mod layout;
-use layout::{LayoutTree, Pane, PaneContent, PaneManager};
-use plugins::{
-    builtin::FileExplorerPlugin, BufferSnapshot, PluginMessage, PluginResponse, PluginRuntime,
+pub use buffers::{Buffer, BufferManager};
+pub use command::{Command, Edit, MouseCommand, Move, System};
+pub use command_dispatcher::{EditorContext, HandlerRegistry, PromptType};
+pub use documentstatus::DocumentStatus;
+pub use events::EditorEvent;
+pub use filetype::FileType;
+pub use layout::{LayoutNode, LayoutTree, Pane, PaneContent, PaneManager, SplitDirection, SplitHandle};
+pub use line::Line;
+pub use plugins::{
+    builtin::FileExplorerPlugin, BufferSnapshot, Plugin, PluginMessage, PluginResponse,
+    PluginRuntime,
 };
-use terminal::Terminal;
-use uicomponents::{BufferBar, ClickAction, CommandBar, MessageBar, StatusBar, UIComponent, View};
-
-mod command_dispatcher;
-use command_dispatcher::{EditorContext, HandlerRegistry, PromptType};
+pub use terminal::Terminal;
+pub use uicomponents::{
+    view::highlighter::{
+        Highlighter, MarkDownSyntaxHighlighter, RustSyntaxHighlighter, SearchResultHighlighter,
+        SyntaxHighlighter, TextSyntaxHighlighter,
+    },
+    view::EditOperation,
+    BufferBar, ClickAction, CommandBar, FileExplorer, MessageBar, StatusBar, UIComponent, View,
+};
 
 pub struct Editor {
     should_quit: bool,

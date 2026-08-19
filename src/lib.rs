@@ -7,8 +7,7 @@
     clippy::integer_division
 )]
 
-use yonro_text_editor::Editor;
+pub mod editor;
+pub mod prelude;
 
-fn main() {
-    Editor::new().unwrap().run();
-}
+pub use editor::Editor;

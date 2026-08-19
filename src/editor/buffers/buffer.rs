@@ -28,6 +28,12 @@ impl Buffer {
             .get(idx)
             .map_or(0, |line| line.width_until(until))
     }
+    pub fn get_line(&self, idx: LineIdx) -> Option<&Line> {
+        self.lines.get(idx)
+    }
+    pub fn lines(&self) -> &[Line] {
+        &self.lines
+    }
     pub fn lines_as_strings(&self) -> Vec<String> {
         self.lines.iter().map(|l| l.to_string()).collect()
     }

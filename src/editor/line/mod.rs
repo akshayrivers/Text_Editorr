@@ -6,10 +6,10 @@ use std::{
 };
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
-mod graphemewidth;
-mod textfragment;
-use graphemewidth::GraphemeWidth;
-use textfragment::TextFragment;
+pub mod graphemewidth;
+pub mod textfragment;
+pub use graphemewidth::GraphemeWidth;
+pub use textfragment::TextFragment;
 
 use super::AnnotatedString;
 use super::Annotation;

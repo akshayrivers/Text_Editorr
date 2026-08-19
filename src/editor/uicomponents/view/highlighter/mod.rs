@@ -1,16 +1,17 @@
 use super::super::super::{Annotation, AnnotationType, FileType, Line};
 
 use crate::prelude::*;
-mod syntaxhighlighter;
-use searchresulthighlighter::SearchResultHighlighter;
-use syntaxhighlighter::SyntaxHighlighter;
-mod mdsyntaxhighlighter;
-mod rustsyntaxhighlighter;
-mod searchresulthighlighter;
-mod textsyntaxhighlighter;
-use mdsyntaxhighlighter::MarkDownSyntaxHighlighter;
-use rustsyntaxhighlighter::RustSyntaxHighlighter;
-use textsyntaxhighlighter::TextSyntaxHighlighter;
+pub mod mdsyntaxhighlighter;
+pub mod rustsyntaxhighlighter;
+pub mod searchresulthighlighter;
+pub mod syntaxhighlighter;
+pub mod textsyntaxhighlighter;
+
+pub use mdsyntaxhighlighter::MarkDownSyntaxHighlighter;
+pub use rustsyntaxhighlighter::RustSyntaxHighlighter;
+pub use searchresulthighlighter::SearchResultHighlighter;
+pub use syntaxhighlighter::SyntaxHighlighter;
+pub use textsyntaxhighlighter::TextSyntaxHighlighter;
 
 fn create_syntax_highlighter(file_type: FileType) -> Option<Box<dyn SyntaxHighlighter>> {
     match file_type {
